@@ -1,6 +1,7 @@
 package com.nexgen.user_service.config;
 
 import com.nexgen.user_service.service.JwtService;
+import com.nexgen.user_service.service.LogoutService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,11 +20,13 @@ import java.io.IOException;
 public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final LogoutService logoutService;
 
     public JwtAuthFilter(JwtService jwtService,
-                         UserDetailsService userDetailsService) {
+                         UserDetailsService userDetailsService, LogoutService logoutService) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.logoutService = logoutService;
     }
 
     @Override
@@ -49,6 +52,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         jwt = authHeader.substring(7);
         username = jwtService.extractUsername(jwt);
+
+        if (logoutService.isTokenBlacklisted(jwt)) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            return;
+        }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);

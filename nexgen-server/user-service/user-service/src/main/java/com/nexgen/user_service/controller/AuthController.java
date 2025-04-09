@@ -3,6 +3,8 @@ package com.nexgen.user_service.controller;
 import com.nexgen.user_service.dto.AuthRequest;
 import com.nexgen.user_service.dto.AuthResponse;
 import com.nexgen.user_service.service.JwtService;
+import com.nexgen.user_service.service.LogoutService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,6 +22,7 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final LogoutService logoutService;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
@@ -35,4 +38,16 @@ public class AuthController {
         return ResponseEntity.ok(new AuthResponse(token, user.getUsername(), email, role));
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout(HttpServletRequest request) {
+        final String authHeader = request.getHeader("Authorization");
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);
+            long expiry = jwtService.extractExpiration(token).getTime() - System.currentTimeMillis();
+            logoutService.blacklistToken(token, expiry);
+        }
+
+        return ResponseEntity.ok("Logged out successfully");
+    }
 }
