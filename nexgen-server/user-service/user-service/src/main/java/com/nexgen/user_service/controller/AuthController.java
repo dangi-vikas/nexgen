@@ -4,6 +4,7 @@ import com.nexgen.user_service.dto.AuthRequest;
 import com.nexgen.user_service.dto.AuthResponse;
 import com.nexgen.user_service.service.JwtService;
 import com.nexgen.user_service.service.LogoutService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 @CrossOrigin()
+@Tag(name = "Authentication Controller", description = "Login and Logout endpoints")
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
