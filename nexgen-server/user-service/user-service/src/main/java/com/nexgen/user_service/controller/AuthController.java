@@ -29,8 +29,10 @@ public class AuthController {
 
         UserDetails user = userDetailsService.loadUserByUsername(request.getUsername());
         String token = jwtService.generateToken(user);
+        String role = ((com.nexgen.user_service.entity.User) user).getRole();
+        String email = ((com.nexgen.user_service.entity.User) user).getEmail();
 
-        return ResponseEntity.ok(new AuthResponse(token));
+        return ResponseEntity.ok(new AuthResponse(token, user.getUsername(), email, role));
     }
 
 }
