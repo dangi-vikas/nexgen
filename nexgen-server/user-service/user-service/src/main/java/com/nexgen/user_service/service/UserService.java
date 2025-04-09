@@ -6,6 +6,8 @@ import com.nexgen.user_service.dto.UserRegistrationRequest;
 import com.nexgen.user_service.entity.User;
 import com.nexgen.user_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    @CacheEvict(value = "users", key = "#username")
     public void updateUserProfile(String username, UpdateProfileRequest request) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
@@ -55,6 +58,7 @@ public class UserService {
         userRepository.save(user);
     }
 
+    @Cacheable(value = "users", key = "#username")
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
