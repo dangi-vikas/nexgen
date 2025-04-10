@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-
+    private final KafkaProducerService kafkaProducer;
 
     public User registerUser(UserRegistrationRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
@@ -31,7 +31,11 @@ public class UserService {
                 .role(request.getRole() != null ? request.getRole() : "ROLE_USER")
                 .build();
 
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        kafkaProducer.sendUserRegistrationEvent(savedUser.getUsername());
+
+        return savedUser;
     }
 
     @CacheEvict(value = "users", key = "#username")
@@ -44,6 +48,7 @@ public class UserService {
         }
 
         userRepository.save(user);
+        kafkaProducer.sendProfileUpdatedEvent(username);
     }
 
     public void changeUserPassword(String username, ChangePasswordRequest request) {
@@ -56,6 +61,7 @@ public class UserService {
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+        kafkaProducer.sendPasswordChangedEvent(username);
     }
 
     @Cacheable(value = "users", key = "#username")
