@@ -4,6 +4,7 @@ import com.nexgen.user_service.dto.ChangePasswordRequest;
 import com.nexgen.user_service.dto.UpdateProfileRequest;
 import com.nexgen.user_service.dto.UserRegistrationRequest;
 import com.nexgen.user_service.entity.User;
+import com.nexgen.user_service.exception.DuplicateUserException;
 import com.nexgen.user_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;
@@ -21,7 +22,7 @@ public class UserService {
 
     public User registerUser(UserRegistrationRequest request) {
         if (userRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("Username already exists");
+            throw new DuplicateUserException("Username already exists");
         }
 
         User user = User.builder()
