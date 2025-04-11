@@ -2,11 +2,14 @@ package com.nexgen.user_service.controller;
 
 import com.nexgen.user_service.dto.AuthRequest;
 import com.nexgen.user_service.dto.AuthResponse;
+import com.nexgen.user_service.dto.RefreshTokenRequest;
 import com.nexgen.user_service.dto.UserLoginEvent;
+import com.nexgen.user_service.entity.User;
 import com.nexgen.user_service.exception.InvalidCredentialsException;
 import com.nexgen.user_service.service.JwtService;
 import com.nexgen.user_service.service.KafkaProducerService;
 import com.nexgen.user_service.service.LogoutService;
+import com.nexgen.user_service.service.RedisService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,7 @@ public class AuthController {
     private final UserDetailsService userDetailsService;
     private final LogoutService logoutService;
     private final KafkaProducerService kafkaProducerService;
+    private final RedisService redisService;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request, HttpServletRequest servletRequest) {
@@ -44,9 +48,10 @@ public class AuthController {
         }
 
         UserDetails user = userDetailsService.loadUserByUsername(request.getUsername());
-        String token = jwtService.generateToken(user);
-        String role = ((com.nexgen.user_service.entity.User) user).getRole();
-        String email = ((com.nexgen.user_service.entity.User) user).getEmail();
+        String accessToken = jwtService.generateToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+        String role = ((User) user).getRole();
+        String email = ((User) user).getEmail();
         String ip = servletRequest.getRemoteAddr();
         UserLoginEvent loginEvent = new UserLoginEvent(
                 request.getUsername(),
@@ -54,9 +59,10 @@ public class AuthController {
                 Instant.now()
         );
 
+        redisService.saveRefreshToken(user.getUsername(), refreshToken);
         kafkaProducerService.sendLoginEvent(loginEvent);
 
-        return ResponseEntity.ok(new AuthResponse(token, user.getUsername(), email, role));
+        return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken, user.getUsername(), email, role));
     }
 
     @PostMapping("/logout")
@@ -71,4 +77,24 @@ public class AuthController {
 
         return ResponseEntity.ok("Logged out successfully");
     }
+
+    @PostMapping("/refresh-token")
+    public ResponseEntity<AuthResponse> refreshToken(@RequestBody RefreshTokenRequest request) {
+        String username = jwtService.extractUsername(request.getRefreshToken());
+        String storedRefreshToken = redisService.getRefreshToken(username);
+
+        if (storedRefreshToken == null || !storedRefreshToken.equals(request.getRefreshToken())) {
+            throw new RuntimeException("Invalid refresh token");
+        }
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+        String newAccessToken = jwtService.generateToken(userDetails);
+        String newRefreshToken = jwtService.generateRefreshToken(userDetails);
+
+        redisService.saveRefreshToken(username, newRefreshToken);
+
+        return ResponseEntity.ok(new AuthResponse(newAccessToken, newRefreshToken, userDetails.getUsername(),
+                ((User) userDetails).getEmail(), ((User) userDetails).getRole()));
+    }
+
 }
