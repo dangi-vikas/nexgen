@@ -39,7 +39,7 @@ public class UserService {
         return savedUser;
     }
 
-    @CacheEvict(value = "users", key = "#username")
+    @CacheEvict(value = "users", key = "#username" )
     public void updateUserProfile(String username, UpdateProfileRequest request) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
