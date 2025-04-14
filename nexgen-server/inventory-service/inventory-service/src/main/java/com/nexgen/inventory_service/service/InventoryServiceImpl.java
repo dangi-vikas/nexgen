@@ -1,12 +1,11 @@
 package com.nexgen.inventory_service.service;
 
-
 import com.nexgen.inventory_service.entity.InventoryItem;
 import com.nexgen.inventory_service.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -42,7 +41,7 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public List<InventoryItem> getAllItems() {
-        return repository.findAll();
+    public Page<InventoryItem> getAllItems(Pageable pageable) {
+        return repository.findAll(pageable);
     }
 }
