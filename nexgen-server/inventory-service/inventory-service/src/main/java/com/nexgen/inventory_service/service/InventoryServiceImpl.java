@@ -4,6 +4,9 @@ import com.nexgen.inventory_service.dto.InventoryEvent;
 import com.nexgen.inventory_service.entity.InventoryItem;
 import com.nexgen.inventory_service.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -18,6 +21,7 @@ public class InventoryServiceImpl implements InventoryService {
     private final KafkaInventoryProducer kafkaInventoryProducer;
 
     @Override
+    @CachePut(value = "inventory", key = "#item.skuCode")
     public InventoryItem createItem(InventoryItem item) {
         InventoryItem createdItem = repository.save(item);
 
@@ -35,6 +39,7 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @CachePut(value = "inventory", key = "#skuCode")
     public InventoryItem updateItem(String skuCode, InventoryItem updatedItem) {
         InventoryItem item = repository.findBySkuCode(skuCode)
                 .orElseThrow(() -> new RuntimeException("Item not found with SKU: " + skuCode));
@@ -69,6 +74,7 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @CacheEvict(value = "inventory", key = "#skuCode")
     public void deleteItem(String skuCode) {
         InventoryItem item = repository.findBySkuCode(skuCode)
                 .orElseThrow(() -> new RuntimeException("Item not found with SKU: " + skuCode));
@@ -76,6 +82,7 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @Cacheable(value = "inventory", key = "#skuCode")
     public InventoryItem getItemBySkuCode(String skuCode) {
         return repository.findBySkuCode(skuCode)
                 .orElseThrow(() -> new RuntimeException("Item not found with SKU: " + skuCode));
