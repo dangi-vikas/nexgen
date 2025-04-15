@@ -1,0 +1,17 @@
+package com.nexgen.inventory_service.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class InventoryEvent {
+    private String skuCode;
+    private String action;
+    private int quantity;
+    private Instant eventTime;
+}

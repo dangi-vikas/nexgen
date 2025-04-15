@@ -29,11 +29,11 @@ spring:
     consumer:
       group-id: inventory-service
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      key-serializer: org.apache.kafka.common.seria lization.StringDeserializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonDeserializer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
 springdoc:
   api-docs:
@@ -49,3 +49,6 @@ logging:
     root: INFO
     org.springframework.kafka: INFO
     org.hibernate.SQL: DEBUG
+
+topic:
+  inventory-events: inventory-events-topic
