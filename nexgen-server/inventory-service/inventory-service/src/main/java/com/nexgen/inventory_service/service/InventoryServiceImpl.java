@@ -2,6 +2,8 @@ package com.nexgen.inventory_service.service;
 
 import com.nexgen.inventory_service.dto.InventoryEvent;
 import com.nexgen.inventory_service.entity.InventoryItem;
+import com.nexgen.inventory_service.exception.DuplicateItemException;
+import com.nexgen.inventory_service.exception.ItemNotFoundException;
 import com.nexgen.inventory_service.repository.InventoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -23,6 +25,10 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @CachePut(value = "inventory", key = "#item.skuCode")
     public InventoryItem createItem(InventoryItem item) {
+        if (repository.findBySkuCode(item.getSkuCode()).isPresent()) {
+            throw new DuplicateItemException("Item with SKU already exists: " + item.getSkuCode());
+        }
+
         InventoryItem createdItem = repository.save(item);
 
         InventoryEvent event = new InventoryEvent(
@@ -42,7 +48,7 @@ public class InventoryServiceImpl implements InventoryService {
     @CachePut(value = "inventory", key = "#skuCode")
     public InventoryItem updateItem(String skuCode, InventoryItem updatedItem) {
         InventoryItem item = repository.findBySkuCode(skuCode)
-                .orElseThrow(() -> new RuntimeException("Item not found with SKU: " + skuCode));
+                .orElseThrow(() -> new ItemNotFoundException("Item not found with SKU: " + skuCode));
 
         item.setName(updatedItem.getName());
         item.setQuantity(updatedItem.getQuantity());
@@ -77,7 +83,7 @@ public class InventoryServiceImpl implements InventoryService {
     @CacheEvict(value = "inventory", key = "#skuCode")
     public void deleteItem(String skuCode) {
         InventoryItem item = repository.findBySkuCode(skuCode)
-                .orElseThrow(() -> new RuntimeException("Item not found with SKU: " + skuCode));
+                .orElseThrow(() -> new ItemNotFoundException("Item not found with SKU: " + skuCode));
         repository.delete(item);
     }
 
@@ -85,7 +91,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Cacheable(value = "inventory", key = "#skuCode")
     public InventoryItem getItemBySkuCode(String skuCode) {
         return repository.findBySkuCode(skuCode)
-                .orElseThrow(() -> new RuntimeException("Item not found with SKU: " + skuCode));
+                .orElseThrow(() -> new ItemNotFoundException("Item not found with SKU: " + skuCode));
     }
 
     @Override
