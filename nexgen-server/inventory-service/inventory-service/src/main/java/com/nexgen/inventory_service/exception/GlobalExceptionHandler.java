@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
         ErrorResponse error = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.CONFLICT.value(),
-                "Dupicate Item Error",
+                "Duplicate Item Error",
                 ex.getMessage(),
                 request.getRequestURI()
         );
