@@ -1,6 +1,7 @@
 package com.nexgen.product_service.service;
 
 import com.nexgen.product_service.entity.Product;
+import com.nexgen.product_service.exception.DuplicateProductException;
 import com.nexgen.product_service.exception.ProductNotFoundException;
 import com.nexgen.product_service.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,10 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public Product createProduct(Product product) {
+        if (repository.findBySkuCode(product.getSkuCode()).isPresent()) {
+            throw new DuplicateProductException(product.getSkuCode());
+        }
+
         return repository.save(product);
     }
 
