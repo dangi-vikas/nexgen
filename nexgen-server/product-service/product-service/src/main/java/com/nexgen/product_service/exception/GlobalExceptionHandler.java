@@ -71,6 +71,14 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request
     ) {
+        String path = request.getRequestURI();
+
+        // Don't interfere with Swagger UI or API docs
+        if (ex instanceof org.springframework.web.servlet.resource.NoResourceFoundException
+                && (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs"))) {
+            throw (RuntimeException) ex;
+        }
+
         ErrorResponse errorResponse = new ErrorResponse(
                 LocalDateTime.now(),
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
