@@ -1,5 +1,6 @@
 package com.nexgen.product_service.service;
 
+import com.nexgen.product_service.dto.ProductEvent;
 import com.nexgen.product_service.entity.Product;
 import com.nexgen.product_service.exception.DuplicateProductException;
 import com.nexgen.product_service.exception.ProductNotFoundException;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository repository;
+    private final KafkaProducerService producer;
 
     @Override
     public Product createProduct(Product product) {
@@ -21,7 +23,19 @@ public class ProductServiceImpl implements ProductService {
             throw new DuplicateProductException(product.getSkuCode());
         }
 
-        return repository.save(product);
+        Product savedProduct = repository.save(product);
+
+        producer.sendProductCreatedEvent(
+                new ProductEvent(
+                        savedProduct.getSkuCode(),
+                        "CREATED",
+                        savedProduct.getName(),
+                        savedProduct.getQuantity(),
+                        System.currentTimeMillis()
+                )
+        );
+
+        return savedProduct;
     }
 
     @Override
@@ -32,14 +46,34 @@ public class ProductServiceImpl implements ProductService {
         existing.setDescription(product.getDescription());
         existing.setPrice(product.getPrice());
         existing.setQuantity(product.getQuantity());
-        return repository.save(existing);
+
+        Product updated = repository.save(existing);
+
+        producer.sendProductStockUpdatedEvent(new ProductEvent(
+                updated.getSkuCode(),
+                "STOCK_UPDATED",
+                updated.getName(),
+                updated.getQuantity(),
+                System.currentTimeMillis()
+        ));
+
+        return updated;
     }
 
     @Override
     public void deleteProduct(String skuCode) {
         Product existing = repository.findBySkuCode(skuCode)
                 .orElseThrow(() -> new ProductNotFoundException(skuCode));
+
         repository.delete(existing);
+
+        producer.sendProductDeletedEvent(new ProductEvent(
+                existing.getSkuCode(),
+                "DELETED",
+                existing.getName(),
+                existing.getQuantity(),
+                System.currentTimeMillis()
+        ));
     }
 
     @Override
