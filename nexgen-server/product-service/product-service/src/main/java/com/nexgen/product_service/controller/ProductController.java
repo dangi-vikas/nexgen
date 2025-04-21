@@ -1,5 +1,7 @@
 package com.nexgen.product_service.controller;
 
+import com.nexgen.product_service.config.PageCacheUtil;
+import com.nexgen.product_service.dto.RedisPageWrapper;
 import com.nexgen.product_service.entity.Product;
 import com.nexgen.product_service.service.ProductService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,6 +50,7 @@ public class ProductController {
     @Operation(summary = "Get all products")
     @GetMapping
     public ResponseEntity<Page<Product>> getAll(Pageable pageable) {
-        return ResponseEntity.ok(productService.getAllProducts(pageable));
+        RedisPageWrapper<Product> wrapper = productService.getAllProducts(pageable);
+        return ResponseEntity.ok(PageCacheUtil.unwrap(wrapper));
     }
 }
