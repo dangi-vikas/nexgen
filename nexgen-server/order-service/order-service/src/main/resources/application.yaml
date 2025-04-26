@@ -47,6 +47,10 @@ springdoc:
     path: /swagger-ui.html
     enabled: true
 
+topic:
+  order-created: order-created
+  order-cancelled: order-cancelled
+
 management:
   endpoints:
     web:

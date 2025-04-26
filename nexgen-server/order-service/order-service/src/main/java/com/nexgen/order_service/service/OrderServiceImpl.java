@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
+    private final OrderKafkaProducerService kafkaProducerService;
 
     @Override
     public OrderResponse createOrder(OrderRequest orderRequest) {
@@ -42,6 +43,10 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderItems(items);
 
         Order savedOrder = orderRepository.save(order);
+
+        kafkaProducerService.sendOrderCreatedEvent(
+            new OrderEvent(savedOrder.getOrderNumber(), savedOrder.getUserId(), savedOrder.getStatus(), Instant.now().toEpochMilli())
+        );
 
         return mapToResponse(savedOrder);
     }
@@ -68,6 +73,11 @@ public class OrderServiceImpl implements OrderService {
                 .orElseThrow(() -> new OrderNotFoundException(orderNumber));
 
         order.setStatus(OrderStatus.CANCELLED);
+
+        kafkaProducerService.sendOrderCancelledEvent(
+                new OrderEvent(order.getOrderNumber(), order.getUserId(), order.getStatus(), Instant.now().toEpochMilli())
+        );
+
         orderRepository.save(order);
 
     }
