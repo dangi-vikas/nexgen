@@ -52,6 +52,19 @@ topic:
   product-updated: product-updated
   product-deleted: product-deleted
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+  endpoint:
+    prometheus:
+      enabled: true
+
 logging:
   level:
     root: INFO
