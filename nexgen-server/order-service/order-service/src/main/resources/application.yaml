@@ -1,5 +1,5 @@
 server:
-  port: ${ORDER_SERVICE_PORT:8083}
+  port: ${ORDER_SERVICE_PORT:8084}
 
 spring:
   application:
@@ -8,7 +8,7 @@ spring:
   datasource:
     url: jdbc:sqlserver://${DB_HOST:localhost}:${MSSQL_PORT:1433};databaseName=${DB_NAME:orderdb};encrypt=true;trustServerCertificate=true
     username: ${DB_USERNAME:sa}
-    password: ${DB_PASSWORD:YourStrong@Passw0rd}
+    password: ${DB_PASSWORD}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
 
   jpa:
