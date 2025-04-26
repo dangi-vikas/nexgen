@@ -7,6 +7,7 @@ import com.nexgen.product_service.dto.RedisPageWrapper;
 import com.nexgen.product_service.entity.Product;
 import com.nexgen.product_service.exception.DuplicateProductException;
 import com.nexgen.product_service.exception.ProductNotFoundException;
+import com.nexgen.product_service.metrics.ProductMetrics;
 import com.nexgen.product_service.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -23,6 +24,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductRepository repository;
     private final KafkaProducerService producer;
     private final RedisCacheUtil redisCacheUtil;
+    private final ProductMetrics productMetrics;
 
     @CachePut(value = "products", key = "#product.skuCode")
     @Override
@@ -42,6 +44,8 @@ public class ProductServiceImpl implements ProductService {
                         System.currentTimeMillis()
                 )
         );
+
+        productMetrics.incrementProductCreated();
 
         return savedProduct;
     }
@@ -65,6 +69,8 @@ public class ProductServiceImpl implements ProductService {
                 updated.getQuantity(),
                 System.currentTimeMillis()
         ));
+
+        productMetrics.incrementStockUpdated();
 
         return updated;
     }
