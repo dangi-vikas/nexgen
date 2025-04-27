@@ -30,14 +30,14 @@ NexGen is a cloud-based, scalable, and event-driven e-commerce microservices pla
 ### 2. **Inventory Service**
 - **CRUD**: Create, Update, Delete, and Get inventory items
 - **Pagination**: Supported for listing product items
-- **Events**: Kafka events for `CREATED`, `UPDATED`, and `DELETED`
+- **Events**: Kafka events for `CREATED`, `UPDATED`, and `OUT_OF_STOCK`
 - **Caching**: Redis caching for get, update, and delete operations
 - **Swagger**: Integrated with detailed documentation
 
 ### 3. **Product Service** 
 - **CRUD**: Create, Update, Delete, and Get product items
 - **Pagination**: Supported for listing inventory items
-- **Events**: Kafka events for `CREATED`, `UPDATED`, and `OUT_OF_STOCK`
+- **Events**: Kafka events for `CREATED`, `UPDATED`, and `DELETED`
 - **Caching**: Redis caching for get, update, and delete operations
 - **Swagger**: Integrated with detailed documentation
 - **Monitoring**: Monitoring metrics via Prometheus and actuator
