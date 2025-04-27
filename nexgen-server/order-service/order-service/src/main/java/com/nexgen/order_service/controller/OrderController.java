@@ -2,6 +2,7 @@ package com.nexgen.order_service.controller;
 
 import com.nexgen.order_service.dto.OrderRequest;
 import com.nexgen.order_service.dto.OrderResponse;
+import com.nexgen.order_service.dto.PagedOrderResponse;
 import com.nexgen.order_service.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,9 +37,10 @@ public class OrderController {
 
     @Operation(summary = "Get all orders by User ID")
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<OrderResponse>> getOrdersByUserId(@PathVariable String userId) {
-        List<OrderResponse> orders = orderService.getOrdersByUserId(userId);
-        return ResponseEntity.ok(orders);
+    public ResponseEntity<PagedOrderResponse> getOrdersByUserId(@PathVariable String userId,
+        @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+        PagedOrderResponse pagedOrderResponse = orderService.getOrdersByUserId(userId, page, size);
+        return ResponseEntity.ok(pagedOrderResponse);
     }
 
     @Operation(summary = "Cancel an order by Order Number")

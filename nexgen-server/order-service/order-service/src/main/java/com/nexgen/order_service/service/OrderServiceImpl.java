@@ -7,6 +7,9 @@ import com.nexgen.order_service.entity.OrderStatus;
 import com.nexgen.order_service.exception.OrderNotFoundException;
 import com.nexgen.order_service.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,11 +63,23 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public List<OrderResponse> getOrdersByUserId(String userId) {
-        return orderRepository.findByUserId(userId)
+    public PagedOrderResponse getOrdersByUserId(String userId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Order> orderPage = orderRepository.findByUserId(userId, pageable);
+
+        List<OrderResponse> content = orderPage.getContent()
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
+
+        return new PagedOrderResponse(
+                content,
+                orderPage.getNumber(),
+                orderPage.getSize(),
+                orderPage.getTotalElements(),
+                orderPage.getTotalPages(),
+                orderPage.isLast()
+        );
     }
 
     @Override
