@@ -41,6 +41,7 @@ public class OrderServiceImpl implements OrderService {
                     orderItem.setSkuCode(item.getSkuCode());
                     orderItem.setQuantity(item.getQuantity());
                     orderItem.setPrice(item.getPrice());
+                    orderItem.setOrder(order);
                     return orderItem;
                 }).collect(Collectors.toList());
         order.setOrderItems(items);
