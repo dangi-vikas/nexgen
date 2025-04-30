@@ -7,6 +7,9 @@ import com.nexgen.order_service.entity.OrderStatus;
 import com.nexgen.order_service.exception.OrderNotFoundException;
 import com.nexgen.order_service.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +29,10 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderKafkaProducerService kafkaProducerService;
 
+    @Caching(evict = {
+        @CacheEvict(value = "orders", key = "#result.orderNumber", condition = "#result != null"),
+        @CacheEvict(value = "ordersByUser", allEntries = true)
+   })
     @Override
     public OrderResponse createOrder(OrderRequest orderRequest) {
         Order order = new Order();
@@ -55,6 +62,7 @@ public class OrderServiceImpl implements OrderService {
         return mapToResponse(savedOrder);
     }
 
+    @Cacheable(value = "orders", key = "#orderNumber")
     @Override
     public OrderResponse getOrderById(String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
@@ -63,6 +71,10 @@ public class OrderServiceImpl implements OrderService {
         return mapToResponse(order);
     }
 
+    @Cacheable(
+            value = "ordersByUser",
+            key = "#userId + ':' + #page + ':' + #size"
+    )
     @Override
     public PagedOrderResponse getOrdersByUserId(String userId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
@@ -83,6 +95,11 @@ public class OrderServiceImpl implements OrderService {
         );
     }
 
+
+    @Caching(evict = {
+        @CacheEvict(value = "orders", key = "#orderNumber"),
+        @CacheEvict(value = "ordersByUser", allEntries = true)
+    })
     @Override
     public void cancelOrder(String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
