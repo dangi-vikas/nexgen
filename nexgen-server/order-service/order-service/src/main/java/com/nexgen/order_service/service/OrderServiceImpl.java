@@ -8,6 +8,8 @@ import com.nexgen.order_service.entity.OrderStatusHistory;
 import com.nexgen.order_service.exception.OrderNotFoundException;
 import com.nexgen.order_service.repository.OrderRepository;
 import com.nexgen.order_service.repository.OrderStatusHistoryRepository;
+import io.micrometer.core.annotation.Timed;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -31,6 +33,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final OrderKafkaProducerService kafkaProducerService;
     private final OrderStatusHistoryRepository historyRepository;
+    private final MeterRegistry meterRegistry;
 
     @Caching(evict = {
         @CacheEvict(value = "orders", key = "#result.orderNumber", condition = "#result != null"),
@@ -56,6 +59,8 @@ public class OrderServiceImpl implements OrderService {
                 }).collect(Collectors.toList());
         order.setOrderItems(items);
 
+        meterRegistry.counter("order.created", "order", order.getOrderNumber()).increment();
+
         Order savedOrder = orderRepository.save(order);
 
         kafkaProducerService.sendOrderCreatedEvent(
@@ -65,6 +70,8 @@ public class OrderServiceImpl implements OrderService {
         return mapToResponse(savedOrder);
     }
 
+
+    @Timed(value = "order.get.by.id", description = "Time taken to fetch orders by orderId")
     @Cacheable(value = "orders", key = "#orderNumber")
     @Override
     public OrderResponse getOrderById(String orderNumber) {
@@ -74,6 +81,7 @@ public class OrderServiceImpl implements OrderService {
         return mapToResponse(order);
     }
 
+    @Timed(value = "order.get.by.userid", description = "Time taken to fetch orders by user")
     @Cacheable(
             value = "ordersByUser",
             key = "#userId + ':' + #page + ':' + #size"
@@ -132,6 +140,8 @@ public class OrderServiceImpl implements OrderService {
     public void updateOrderStatus(String orderNumber, OrderStatus newStatus) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
                 .orElseThrow(() -> new OrderNotFoundException(orderNumber));
+
+        meterRegistry.counter("order.status.updated", "status", newStatus.name()).increment();
 
         OrderStatus currentStatus = order.getStatus();
         if (!currentStatus.canTransitionTo(newStatus)) {
