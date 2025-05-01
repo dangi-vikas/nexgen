@@ -20,6 +20,9 @@ public class OrderKafkaProducerService {
     @Value("${topic.order-cancelled}")
     private String orderCancelledTopic;
 
+    @Value("${topic.order-status-updated}")
+    private String orderStatusUpdatedTopic;
+
     public void sendOrderCreatedEvent(OrderEvent event) {
         log.info("Publishing Order Created event: {}", event);
         kafkaTemplate.send(orderCreatedTopic, event);
@@ -28,5 +31,10 @@ public class OrderKafkaProducerService {
     public void sendOrderCancelledEvent(OrderEvent event) {
         log.info("Publishing Order Cancelled event: {}", event);
         kafkaTemplate.send(orderCancelledTopic, event);
+    }
+
+    public void sendOrderUpdatedEvent(OrderEvent event) {
+        log.info("Publishing Order Status Update event: {}", event);
+        kafkaTemplate.send(orderStatusUpdatedTopic, event);
     }
 }

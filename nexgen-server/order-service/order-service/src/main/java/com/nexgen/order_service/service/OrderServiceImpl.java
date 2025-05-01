@@ -4,8 +4,10 @@ import com.nexgen.order_service.dto.*;
 import com.nexgen.order_service.entity.Order;
 import com.nexgen.order_service.entity.OrderItem;
 import com.nexgen.order_service.entity.OrderStatus;
+import com.nexgen.order_service.entity.OrderStatusHistory;
 import com.nexgen.order_service.exception.OrderNotFoundException;
 import com.nexgen.order_service.repository.OrderRepository;
+import com.nexgen.order_service.repository.OrderStatusHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -28,6 +30,7 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderKafkaProducerService kafkaProducerService;
+    private final OrderStatusHistoryRepository historyRepository;
 
     @Caching(evict = {
         @CacheEvict(value = "orders", key = "#result.orderNumber", condition = "#result != null"),
@@ -76,9 +79,15 @@ public class OrderServiceImpl implements OrderService {
             key = "#userId + ':' + #page + ':' + #size"
     )
     @Override
-    public PagedOrderResponse getOrdersByUserId(String userId, int page, int size) {
+    public PagedOrderResponse getOrdersByUserId(String userId, int page, int size, OrderStatus status) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Order> orderPage = orderRepository.findByUserId(userId, pageable);
+        Page<Order> orderPage;
+
+        if (status != null) {
+            orderPage = orderRepository.findByUserIdAndStatus(userId, status, pageable);
+        } else {
+            orderPage = orderRepository.findByUserId(userId, pageable);
+        }
 
         List<OrderResponse> content = orderPage.getContent()
                 .stream()
@@ -113,6 +122,38 @@ public class OrderServiceImpl implements OrderService {
 
         orderRepository.save(order);
 
+    }
+
+    @Override
+    @Caching(evict = {
+            @CacheEvict(value = "orders", key = "#orderNumber"),
+            @CacheEvict(value = "ordersByUser", allEntries = true)
+    })
+    public void updateOrderStatus(String orderNumber, OrderStatus newStatus) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new OrderNotFoundException(orderNumber));
+
+        OrderStatus currentStatus = order.getStatus();
+        if (!currentStatus.canTransitionTo(newStatus)) {
+            throw new IllegalStateException("Invalid status transition from " + currentStatus + " to " + newStatus);
+        }
+
+        order.setStatus(newStatus);
+        orderRepository.save(order);
+
+        OrderStatusHistory history = OrderStatusHistory.builder()
+                .orderNumber(orderNumber)
+                .oldStatus(currentStatus)
+                .newStatus(newStatus)
+                .changedAt(Instant.now())
+                .changedBy("system")
+                .build();
+
+        historyRepository.save(history);
+
+        kafkaProducerService.sendOrderUpdatedEvent(
+                new OrderEvent(order.getOrderNumber(), order.getUserId(), newStatus, Instant.now().toEpochMilli())
+        );
     }
 
     private OrderResponse mapToResponse(Order order) {

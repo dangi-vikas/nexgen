@@ -50,6 +50,7 @@ springdoc:
 topic:
   order-created: order-created
   order-cancelled: order-cancelled
+  order-status-updated: order-status-updated
 
 management:
   endpoints:
