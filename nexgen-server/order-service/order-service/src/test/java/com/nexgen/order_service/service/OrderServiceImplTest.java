@@ -6,6 +6,7 @@ import com.nexgen.order_service.entity.OrderItem;
 import com.nexgen.order_service.entity.OrderStatus;
 import com.nexgen.order_service.exception.OrderNotFoundException;
 import com.nexgen.order_service.repository.OrderRepository;
+import com.nexgen.order_service.repository.OrderStatusHistoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
@@ -24,6 +25,9 @@ class OrderServiceImplTest {
 
     @Mock
     private OrderRepository orderRepository;
+
+    @Mock
+    private OrderStatusHistoryRepository historyRepository;
 
     @Mock
     private OrderKafkaProducerService kafkaProducerService;
@@ -95,7 +99,7 @@ class OrderServiceImplTest {
 
         when(orderRepository.findByUserId(eq(userId), any(Pageable.class))).thenReturn(page);
 
-        PagedOrderResponse response = orderService.getOrdersByUserId(userId, 0, 2);
+        PagedOrderResponse response = orderService.getOrdersByUserId(userId, 0, 2, null);
 
         assertEquals(1, response.getContent().size());
         assertEquals("ORDER123", response.getContent().get(0).getOrderNumber());
@@ -122,5 +126,91 @@ class OrderServiceImplTest {
         when(orderRepository.findByOrderNumber("ORDER123")).thenReturn(Optional.empty());
 
         assertThrows(OrderNotFoundException.class, () -> orderService.cancelOrder("ORDER123"));
+    }
+
+    @Test
+    void shouldReturnPagedOrdersByUserIdWithoutStatus() {
+        String userId = "user123";
+        int page = 0, size = 2;
+        Pageable pageable = PageRequest.of(page, size);
+
+        Order order = Order.builder().orderNumber("ORD1").userId(userId).status(OrderStatus.PENDING).build();
+        order.setOrderItems(List.of(new OrderItem(1L,"SKU1", 2, 50.0, order)));
+        Page<Order> orderPage = new PageImpl<>(List.of(order), pageable, 1);
+
+        when(orderRepository.findByUserId(eq(userId), eq(pageable))).thenReturn(orderPage);
+
+        PagedOrderResponse response = orderService.getOrdersByUserId(userId, page, size, null);
+
+        assertEquals(1, response.getContent().size());
+        assertEquals("ORD1", response.getContent().get(0).getOrderNumber());
+    }
+
+    @Test
+    void shouldReturnPagedOrdersByUserIdWithStatus() {
+        String userId = "user123";
+        int page = 0, size = 2;
+        OrderStatus status = OrderStatus.CONFIRMED;
+        Pageable pageable = PageRequest.of(page, size);
+
+        Order order = Order.builder().orderNumber("ORD2").userId(userId).status(status).build();
+        order.setOrderItems(List.of(new OrderItem(1L,"SKU1", 2, 50.0, order)));
+        Page<Order> orderPage = new PageImpl<>(List.of(order), pageable, 1);
+
+        when(orderRepository.findByUserIdAndStatus(eq(userId), eq(status), eq(pageable))).thenReturn(orderPage);
+
+        PagedOrderResponse response = orderService.getOrdersByUserId(userId, page, size, status);
+
+        assertEquals(1, response.getContent().size());
+        assertEquals("ORD2", response.getContent().get(0).getOrderNumber());
+    }
+
+    @Test
+    void shouldUpdateOrderStatusAndPublishEvent() {
+        String orderNumber = "ORD1";
+        OrderStatus currentStatus = OrderStatus.CONFIRMED;
+        OrderStatus newStatus = OrderStatus.DELIVERED;
+
+        Order order = Order.builder()
+                .orderNumber(orderNumber)
+                .userId("user123")
+                .status(currentStatus)
+                .build();
+
+        when(orderRepository.findByOrderNumber(orderNumber)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+
+        orderService.updateOrderStatus(orderNumber, newStatus);
+
+        assertEquals(newStatus, order.getStatus());
+
+        verify(historyRepository).save(argThat(history ->
+                history.getOrderNumber().equals(orderNumber) &&
+                        history.getOldStatus() == currentStatus &&
+                        history.getNewStatus() == newStatus));
+
+        verify(kafkaProducerService).sendOrderUpdatedEvent(any(OrderEvent.class));
+    }
+
+    @Test
+    void shouldThrowWhenOrderNotFound() {
+        when(orderRepository.findByOrderNumber("INVALID")).thenReturn(Optional.empty());
+
+        assertThrows(OrderNotFoundException.class, () ->
+                orderService.updateOrderStatus("INVALID", OrderStatus.DELIVERED));
+    }
+
+    @Test
+    void shouldThrowOnInvalidStatusTransition() {
+        Order order = Order.builder()
+                .orderNumber("ORD1")
+                .userId("user123")
+                .status(OrderStatus.CANCELLED)
+                .build();
+
+        when(orderRepository.findByOrderNumber("ORD1")).thenReturn(Optional.of(order));
+
+        assertThrows(IllegalStateException.class, () ->
+                orderService.updateOrderStatus("ORD1", OrderStatus.DELIVERED));
     }
 }
