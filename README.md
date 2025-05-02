@@ -12,7 +12,7 @@ NexGen is a cloud-based, scalable, and event-driven e-commerce microservices pla
 - **Event Bus**: Apache Kafka (Confluent)
 - **API Gateway**: Kong Gateway
 - **DevOps**: Docker, Docker Compose
-- **Monitoring**: Spring Boot Actuator
+- **Monitoring**: Spring Boot Actuator, Prometheus
 - **Documentation**: Swagger/OpenAPI
 
 ---
@@ -29,20 +29,24 @@ NexGen is a cloud-based, scalable, and event-driven e-commerce microservices pla
 
 ### 2. **Inventory Service**
 - **CRUD**: Create, Update, Delete, and Get inventory items
-- **Pagination**: Supported for listing inventory items
+- **Pagination**: Supported for listing product items
 - **Events**: Kafka events for `CREATED`, `UPDATED`, and `OUT_OF_STOCK`
 - **Caching**: Redis caching for get, update, and delete operations
 - **Swagger**: Integrated with detailed documentation
 
-### 3. **Product Service** *(Planned)*
-- **Features**: Manage product metadata (name, description, price, image, etc.)
-- **Integration**: Connects with Inventory to show availability
+### 3. **Product Service** 
+- **CRUD**: Create, Update, Delete, and Get product items
+- **Pagination**: Supported for listing inventory items
+- **Events**: Kafka events for `CREATED`, `UPDATED`, and `DELETED`
+- **Caching**: Redis caching for get, update, and delete operations
+- **Swagger**: Integrated with detailed documentation
+- **Monitoring**: Monitoring metrics via Prometheus and actuator
 
 ### 4. **Cart Service** *(Planned)*
 - **Features**: Add/Remove items from cart, Update quantity, Calculate total
 - **Integration**: Communicates with Product and Inventory services
 
-### 5. **Order Service** *(Planned)*
+### 5. **Order Service** *(Loading)*
 - **Features**: Place orders, Track orders, Payment integration
 - **Events**: Kafka-driven order processing and stock syncing
 
@@ -114,7 +118,7 @@ Run each service locally using IntelliJ.
 
 ## 🧪 Upcoming Work
 
-- [ ] Implement Product, Cart, Order, and Notification services
+- [ ] Implement Cart and Notification services
 - [ ] Kafka and Redis integration for other services
 - [ ] Role-based Authorization (RBAC)
 - [ ] Deployment of application to Azure Cloud
@@ -138,9 +142,9 @@ Run each service locally using IntelliJ.
 nexgen/
 ├── user-service/
 ├── inventory-service/
-├── product-service/     # (planned)
+├── product-service/     
 ├── cart-service/        # (planned)
-├── order-service/       # (planned)
+├── order-service/       # (loading)
 ├── notification-service/# (planned)
 └── api-gateway/ (Kong)
 ```
