@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 public class CartServiceImpl implements CartService {
 
     private final CartItemRepository cartRepository;
+    private final CartEventProducerService cartEventProducer;
 
     @Override
     public List<CartItemResponse> getCartByUser(String userId) {
@@ -46,6 +47,11 @@ public class CartServiceImpl implements CartService {
         }
 
         CartItem saved = cartRepository.save(item);
+
+        cartEventProducer.sendAddToCartEvent(
+                new AddToCartEvent(userId, item.getProductId(), item.getQuantity(), item.getPrice())
+        );
+
         return mapToResponse(saved);
     }
 
@@ -72,9 +78,15 @@ public class CartServiceImpl implements CartService {
             item.setQuantity(updatedQuantity);
             item.setPrice(updatedPrice);
             CartItem updated = cartRepository.save(item);
+            cartEventProducer.sendRemoveFromCartEvent(
+                    new RemoveFromCartEvent(userId, productId, quantity, "Item removed from cart")
+            );
             return mapToResponse(updated);
         } else {
             cartRepository.delete(item);
+            cartEventProducer.sendRemoveFromCartEvent(
+                    new RemoveFromCartEvent(userId, productId, quantity, "Item removed from cart")
+            );
             return CartItemResponse.builder()
                     .userId(userId)
                     .productId(productId)
@@ -93,6 +105,11 @@ public class CartServiceImpl implements CartService {
         }
 
         cartRepository.deleteByUserId(userId);
+
+        int totalQuantity = items.stream().mapToInt(CartItem::getQuantity).sum();
+
+        CartClearedEvent event = new CartClearedEvent(userId, totalQuantity, "Cart cleared successfully.");
+        cartEventProducer.sendCartClearedEvent(event);
     }
 
     @Override
@@ -109,12 +126,23 @@ public class CartServiceImpl implements CartService {
 
         cartRepository.deleteAll(items);
 
-        return CheckoutResponse.builder()
+        CheckoutResponse response = CheckoutResponse.builder()
                 .userId(request.getUserId())
                 .paymentStatus("SUCCESS") // Simulated for now
                 .totalAmount(totalAmount)
                 .purchasedProductIds(purchasedProductIds)
                 .build();
+
+        cartEventProducer.sendCheckoutEvent(
+                new CheckoutEvent(
+                        request.getUserId(),
+                        items.stream().map(CartItem::getProductId).toList(),
+                        response.getTotalAmount(),
+                        "Checkout completed"
+                )
+        );
+
+        return response;
     }
 
     private CartItemResponse mapToResponse(CartItem item) {

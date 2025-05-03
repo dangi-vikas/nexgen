@@ -48,6 +48,10 @@ springdoc:
     enabled: true
 
 topic:
+  cart-cleared: cart-cleared
+  cart-item-added: cart-item-added
+  cart-item-removed: cart-item-removed
+  cart-checkout: cart-checkout
 
 management:
   endpoints:
