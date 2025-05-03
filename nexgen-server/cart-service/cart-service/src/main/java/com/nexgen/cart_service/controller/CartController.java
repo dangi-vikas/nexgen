@@ -1,6 +1,7 @@
 package com.nexgen.cart_service.controller;
 
 import com.nexgen.cart_service.dto.*;
+import com.nexgen.cart_service.exception.InvalidQuantityException;
 import com.nexgen.cart_service.service.CartService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -41,8 +42,9 @@ public class CartController {
             @PathVariable int quantity) {
 
         if (quantity <= 0) {
-            return ResponseEntity.badRequest().body(null);
+            throw new InvalidQuantityException("Quantity to remove must be greater than 0.");
         }
+
         return ResponseEntity.ok(cartService.removeItemQuantity(userId, productId, quantity));
     }
 

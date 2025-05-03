@@ -2,6 +2,9 @@ package com.nexgen.cart_service.service;
 
 import com.nexgen.cart_service.dto.*;
 import com.nexgen.cart_service.entity.CartItem;
+import com.nexgen.cart_service.exception.CartEmptyException;
+import com.nexgen.cart_service.exception.CartItemNotFoundException;
+import com.nexgen.cart_service.exception.InvalidQuantityException;
 import com.nexgen.cart_service.repository.CartItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -49,13 +52,17 @@ public class CartServiceImpl implements CartService {
     @Override
     public CartItemResponse removeItemQuantity(String userId, String productId, int quantity) {
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity to remove must be greater than 0.");
+            throw new InvalidQuantityException("Quantity to remove must be greater than 0.");
         }
 
         CartItem item = cartRepository.findByUserIdAndProductId(userId, productId);
 
         if (item == null) {
-            throw new IllegalArgumentException("Item not found in cart.");
+            throw new CartItemNotFoundException("Cart item not found for userId: " + userId + " and productId: " + productId);
+        }
+
+        if (item.getQuantity() < quantity) {
+            throw new InvalidQuantityException("Reduce amount is greater than quantity in cart.");
         }
 
         int updatedQuantity = item.getQuantity() - quantity;
@@ -79,6 +86,12 @@ public class CartServiceImpl implements CartService {
 
     @Override
     public void clearCart(String userId) {
+        List<CartItem> items = cartRepository.findByUserId(userId);
+
+        if (items.isEmpty()) {
+            throw new CartEmptyException("Cart is already empty for userId: " + userId);
+        }
+
         cartRepository.deleteByUserId(userId);
     }
 
