@@ -7,6 +7,8 @@ import com.nexgen.cart_service.exception.CartItemNotFoundException;
 import com.nexgen.cart_service.exception.InvalidQuantityException;
 import com.nexgen.cart_service.repository.CartItemRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,7 @@ public class CartServiceImpl implements CartService {
     private final CartItemRepository cartRepository;
     private final CartEventProducerService cartEventProducer;
 
+    @Cacheable(value = "cart", key = "#userId")
     @Override
     public List<CartItemResponse> getCartByUser(String userId) {
         return cartRepository.findByUserId(userId)
@@ -29,6 +32,7 @@ public class CartServiceImpl implements CartService {
                 .collect(Collectors.toList());
     }
 
+    @CacheEvict(value = "cart", key = "#userId")
     @Override
     public CartItemResponse addItemToCart(String userId, CartItemRequest itemRequest) {
         CartItem item;
@@ -55,6 +59,7 @@ public class CartServiceImpl implements CartService {
         return mapToResponse(saved);
     }
 
+    @CacheEvict(value = "cart", key = "#userId")
     @Override
     public CartItemResponse removeItemQuantity(String userId, String productId, int quantity) {
         if (quantity <= 0) {
@@ -96,6 +101,7 @@ public class CartServiceImpl implements CartService {
         }
     }
 
+    @CacheEvict(value = "cart", key = "#userId")
     @Override
     public void clearCart(String userId) {
         List<CartItem> items = cartRepository.findByUserId(userId);
@@ -112,6 +118,7 @@ public class CartServiceImpl implements CartService {
         cartEventProducer.sendCartClearedEvent(event);
     }
 
+    @CacheEvict(value = "cart", key = "#request.userId")
     @Override
     public CheckoutResponse checkout(CheckoutRequest request) {
         List<CartItem> items = cartRepository.findByUserId(request.getUserId());
