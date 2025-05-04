@@ -6,7 +6,15 @@ import com.nexgen.cart_service.exception.CartEmptyException;
 import com.nexgen.cart_service.exception.CartItemNotFoundException;
 import com.nexgen.cart_service.exception.InvalidQuantityException;
 import com.nexgen.cart_service.repository.CartItemRepository;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
+import io.micrometer.core.annotation.Timed;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -17,15 +25,38 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional
 public class CartServiceImpl implements CartService {
 
     private final CartItemRepository cartRepository;
     private final CartEventProducerService cartEventProducer;
+    private final MeterRegistry meterRegistry;
+
+    private Counter getCartItemCounter;
+    private Counter addToCartCounter;
+    private Counter removeFromCartCounter;
+    private Counter clearCartCounter;
+    private Counter checkoutCounter;
+
+    @PostConstruct
+    public void initCounters() {
+        this.getCartItemCounter = meterRegistry.counter("cart.get.items.count");
+        this.addToCartCounter = meterRegistry.counter("cart.add.count");
+        this.removeFromCartCounter = meterRegistry.counter("cart.remove.count");
+        this.clearCartCounter = meterRegistry.counter("cart.clear.count");
+        this.checkoutCounter = meterRegistry.counter("cart.checkout.count");
+    }
 
     @Cacheable(value = "cart", key = "#userId")
+    @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackGetCart")
+    @RateLimiter(name = "cartServiceRateLimiter")
+    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackForGetCart")
+    @Timed(value = "cart.get.by.user", description = "Time taken to get cart by user")
     @Override
     public List<CartItemResponse> getCartByUser(String userId) {
+        getCartItemCounter.increment();
+
         return cartRepository.findByUserId(userId)
                 .stream()
                 .map(this::mapToResponse)
@@ -33,8 +64,14 @@ public class CartServiceImpl implements CartService {
     }
 
     @CacheEvict(value = "cart", key = "#userId")
+    @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackAddItem")
+    @RateLimiter(name = "cartServiceRateLimiter")
+    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackAddItem")
+    @Timed(value = "cart.add.item", description = "Time taken to add item to cart")
     @Override
     public CartItemResponse addItemToCart(String userId, CartItemRequest itemRequest) {
+        addToCartCounter.increment();
+
         CartItem item;
 
         if (cartRepository.existsByUserIdAndProductId(userId, itemRequest.getProductId())) {
@@ -60,8 +97,13 @@ public class CartServiceImpl implements CartService {
     }
 
     @CacheEvict(value = "cart", key = "#userId")
+    @RateLimiter(name = "cartServiceRateLimiter")
+    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackRemoveItem")
+    @Timed(value = "cart.remove.item", description = "Time taken to remove item from cart")
     @Override
     public CartItemResponse removeItemQuantity(String userId, String productId, int quantity) {
+        removeFromCartCounter.increment();
+
         if (quantity <= 0) {
             throw new InvalidQuantityException("Quantity to remove must be greater than 0.");
         }
@@ -102,8 +144,14 @@ public class CartServiceImpl implements CartService {
     }
 
     @CacheEvict(value = "cart", key = "#userId")
+    @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackClearCart")
+    @RateLimiter(name = "cartServiceRateLimiter")
+    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackClearCart")
+    @Timed(value = "cart.clear", description = "Time taken to clear cart")
     @Override
     public void clearCart(String userId) {
+        clearCartCounter.increment();
+
         List<CartItem> items = cartRepository.findByUserId(userId);
 
         if (items.isEmpty()) {
@@ -119,8 +167,14 @@ public class CartServiceImpl implements CartService {
     }
 
     @CacheEvict(value = "cart", key = "#request.userId")
+    @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackCheckout")
+    @RateLimiter(name = "cartServiceRateLimiter")
+    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackCheckout")
+    @Timed(value = "cart.checkout", description = "Time taken to checkout cart")
     @Override
     public CheckoutResponse checkout(CheckoutRequest request) {
+        checkoutCounter.increment();
+
         List<CartItem> items = cartRepository.findByUserId(request.getUserId());
 
         double totalAmount = items.stream()
@@ -158,6 +212,41 @@ public class CartServiceImpl implements CartService {
                 .productId(item.getProductId())
                 .quantity(item.getQuantity())
                 .price(item.getPrice())
+                .build();
+    }
+
+    public List<CartItemResponse> fallbackGetCart(String userId, Throwable t) {
+        return List.of();
+    }
+
+    public CartItemResponse fallbackAddItem(String userId, CartItemRequest request, Throwable t) {
+        return CartItemResponse.builder()
+                .userId(userId)
+                .productId(request.getProductId())
+                .quantity(0)
+                .price(0)
+                .build();
+    }
+
+    public CartItemResponse fallbackRemoveItem(String userId, String productId, int qty, Throwable t) {
+        return CartItemResponse.builder()
+                .userId(userId)
+                .productId(productId)
+                .quantity(0)
+                .price(0)
+                .build();
+    }
+
+    public void fallbackClearCart(String userId, Throwable t) {
+        log.error("Some error occurred during clearing of the cart. Please try again.");
+    }
+
+    public CheckoutResponse fallbackCheckout(CheckoutRequest request, Throwable t) {
+        return CheckoutResponse.builder()
+                .userId(request.getUserId())
+                .paymentStatus("FAILED")
+                .totalAmount(0)
+                .purchasedProductIds(List.of())
                 .build();
     }
 }

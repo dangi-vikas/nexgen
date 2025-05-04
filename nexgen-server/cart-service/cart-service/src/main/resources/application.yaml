@@ -53,18 +53,48 @@ topic:
   cart-item-removed: cart-item-removed
   cart-checkout: cart-checkout
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      cartServiceCircuitBreaker:
+        register-health-indicator: true
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+
+  retry:
+    instances:
+      cartServiceRetry:
+        max-attempts: 3
+        wait-duration: 500ms
+
+  ratelimiter:
+    instances:
+      cartServiceRateLimiter:
+        limit-for-period: 5
+        limit-refresh-period: 10s
+        timeout-duration: 0
+
 management:
   endpoints:
     web:
       exposure:
         include: health, info, prometheus, metrics
   metrics:
+    tags:
+      application: cart-service
     export:
       prometheus:
         enabled: true
   endpoint:
     prometheus:
       enabled: true
+    health:
+      show-details: always
 
 logging:
   level:
