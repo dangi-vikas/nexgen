@@ -93,14 +93,6 @@ public class CartServiceImpl implements CartService {
 
         CartItem saved = cartRepository.save(item);
 
-        try {
-            cartEventProducer.sendAddToCartEvent(
-                    new AddToCartEvent(userId, item.getProductId(), item.getQuantity(), item.getPrice())
-            );
-        } catch (Exception e) {
-            log.error("Failed to publish Kafka AddToCartEvent for userId={} and productId={}", userId, item.getProductId(), e);
-        }
-
         return mapToResponse(saved);
     }
 
@@ -133,15 +125,9 @@ public class CartServiceImpl implements CartService {
             item.setQuantity(updatedQuantity);
             item.setPrice(updatedPrice);
             CartItem updated = cartRepository.save(item);
-            cartEventProducer.sendRemoveFromCartEvent(
-                    new RemoveFromCartEvent(userId, productId, quantity, "Item removed from cart")
-            );
             return mapToResponse(updated);
         } else {
             cartRepository.delete(item);
-            cartEventProducer.sendRemoveFromCartEvent(
-                    new RemoveFromCartEvent(userId, productId, quantity, "Item removed from cart")
-            );
             return CartItemResponse.builder()
                     .userId(userId)
                     .productId(productId)
@@ -167,11 +153,6 @@ public class CartServiceImpl implements CartService {
         }
 
         cartRepository.deleteByUserId(userId);
-
-        int totalQuantity = items.stream().mapToInt(CartItem::getQuantity).sum();
-
-        CartClearedEvent event = new CartClearedEvent(userId, totalQuantity, "Cart cleared successfully.");
-        cartEventProducer.sendCartClearedEvent(event);
     }
 
     @CacheEvict(value = "cart", key = "#request.userId")
@@ -205,15 +186,6 @@ public class CartServiceImpl implements CartService {
                 .totalAmount(totalAmount)
                 .purchasedProductIds(purchasedProductIds)
                 .build();
-
-        cartEventProducer.sendCheckoutEvent(
-                new CheckoutEvent(
-                        request.getUserId(),
-                        items.stream().map(CartItem::getProductId).toList(),
-                        response.getTotalAmount(),
-                        "Checkout completed"
-                )
-        );
 
         return response;
     }
@@ -260,5 +232,9 @@ public class CartServiceImpl implements CartService {
                 .totalAmount(0)
                 .purchasedProductIds(List.of())
                 .build();
+    }
+
+    public List<CartItem> getItemsByUserId(String userId) {
+        return cartRepository.findByUserId(userId);
     }
 }

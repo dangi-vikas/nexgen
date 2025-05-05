@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 public class CartEventProducerService {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final KafkaFallbackService fallbackService;
+    private static final String FALLBACK_ERROR = "Kafka send failed. Falling back to Redis: {}";
 
     @Value("${topic.cart-cleared}")
     private String cartClearedTopic;
@@ -31,21 +33,45 @@ public class CartEventProducerService {
 
     public void sendCartClearedEvent(CartClearedEvent event) {
         log.info("Publishing Cart Cleared event: {}", event);
-        kafkaTemplate.send(cartClearedTopic, event);
+
+        try {
+            kafkaTemplate.send(cartClearedTopic, event);
+        } catch (Exception ex) {
+            log.error(FALLBACK_ERROR, ex.getMessage());
+            fallbackService.enqueueFailedEvent(event);
+        }
+
     }
 
     public void sendAddToCartEvent(AddToCartEvent event) {
         log.info("Publishing Add to Cart event: {}", event);
-        kafkaTemplate.send(carAddedTopic, event);
+        try {
+            kafkaTemplate.send(carAddedTopic, event);
+        } catch(Exception ex) {
+            log.error(FALLBACK_ERROR, ex.getMessage());
+            fallbackService.enqueueFailedEvent(event);
+        }
     }
 
     public void sendRemoveFromCartEvent(RemoveFromCartEvent event) {
         log.info("Publishing Remove from Cart  event: {}", event);
-        kafkaTemplate.send(cartRemovedTopic, event);
+
+        try {
+            kafkaTemplate.send(cartRemovedTopic, event);
+        } catch(Exception ex) {
+            log.error(FALLBACK_ERROR, ex.getMessage());
+            fallbackService.enqueueFailedEvent(event);
+        }
     }
 
     public void sendCheckoutEvent(CheckoutEvent event) {
         log.info("Publishing Checkout event: {}", event);
-        kafkaTemplate.send(cartCheckoutTopic, event);
+
+        try {
+            kafkaTemplate.send(cartCheckoutTopic, event);
+        } catch (Exception ex) {
+            log.error(FALLBACK_ERROR, ex.getMessage());
+            fallbackService.enqueueFailedEvent(event);
+        }
     }
 }
