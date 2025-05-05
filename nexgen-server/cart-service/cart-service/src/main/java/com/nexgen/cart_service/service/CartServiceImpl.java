@@ -74,6 +74,10 @@ public class CartServiceImpl implements CartService {
 
         CartItem item;
 
+        if (itemRequest.getQuantity() <= 0) {
+            throw new InvalidQuantityException("Quantity to add must be greater than 0.");
+        }
+
         if (cartRepository.existsByUserIdAndProductId(userId, itemRequest.getProductId())) {
             item = cartRepository.findByUserIdAndProductId(userId, itemRequest.getProductId());
             item.setQuantity(item.getQuantity() + itemRequest.getQuantity());
@@ -89,9 +93,13 @@ public class CartServiceImpl implements CartService {
 
         CartItem saved = cartRepository.save(item);
 
-        cartEventProducer.sendAddToCartEvent(
-                new AddToCartEvent(userId, item.getProductId(), item.getQuantity(), item.getPrice())
-        );
+        try {
+            cartEventProducer.sendAddToCartEvent(
+                    new AddToCartEvent(userId, item.getProductId(), item.getQuantity(), item.getPrice())
+            );
+        } catch (Exception e) {
+            log.error("Failed to publish Kafka AddToCartEvent for userId={} and productId={}", userId, item.getProductId(), e);
+        }
 
         return mapToResponse(saved);
     }
@@ -176,6 +184,10 @@ public class CartServiceImpl implements CartService {
         checkoutCounter.increment();
 
         List<CartItem> items = cartRepository.findByUserId(request.getUserId());
+
+        if (items.isEmpty()) {
+            throw new CartEmptyException("Cannot checkout an empty cart");
+        }
 
         double totalAmount = items.stream()
                 .mapToDouble(CartItem::getPrice)
