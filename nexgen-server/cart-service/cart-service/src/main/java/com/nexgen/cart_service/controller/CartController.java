@@ -7,6 +7,7 @@ import com.nexgen.cart_service.service.CartEventProducerService;
 import com.nexgen.cart_service.service.CartService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,15 +25,16 @@ public class CartController {
 
     @Operation(summary = "Get current items in the cart")
     @GetMapping("/{userId}")
-    public ResponseEntity<List<CartItemResponse>> getCartByUser(@PathVariable String userId) {
-        return ResponseEntity.ok(cartService.getCartByUser(userId));
+    public ResponseEntity<ApiResponse<List<CartItemResponse>>> getCartByUser(@PathVariable String userId) {
+        List<CartItemResponse> items = cartService.getCartByUser(userId);
+        return ResponseEntity.ok(ApiResponse.success(items, "Cart items retrieved successfully"));
     }
 
     @Operation(summary = "Add an item to the cart")
     @PostMapping("/{userId}/add")
-    public ResponseEntity<CartItemResponse> addItemToCart(
+    public ResponseEntity<ApiResponse<CartItemResponse>> addItemToCart(
             @PathVariable String userId,
-            @RequestBody CartItemRequest itemRequest
+            @Valid @RequestBody CartItemRequest itemRequest
     ) {
         CartItemResponse item = cartService.addItemToCart(userId, itemRequest);
 
@@ -40,12 +42,12 @@ public class CartController {
                 new AddToCartEvent(userId, item.getProductId(), item.getQuantity(), item.getPrice())
         );
 
-        return ResponseEntity.ok(item);
+        return ResponseEntity.ok(ApiResponse.success(item, "Item added to cart"));
     }
 
     @Operation(summary = "Remove items from the cart")
     @DeleteMapping("/{userId}/remove/{productId}/quantity/{quantity}")
-    public ResponseEntity<CartItemResponse> removeItemQuantity(
+    public ResponseEntity<ApiResponse<CartItemResponse>> removeItemQuantity(
             @PathVariable String userId,
             @PathVariable String productId,
             @PathVariable int quantity) {
@@ -60,12 +62,12 @@ public class CartController {
                 new RemoveFromCartEvent(userId, productId, quantity, "Item removed from cart")
         );
 
-        return ResponseEntity.ok(item);
+        return ResponseEntity.ok(ApiResponse.success(item, "Item quantity removed from cart"));
     }
 
     @Operation(summary = "Clear the cart")
     @DeleteMapping("/{userId}/clear")
-    public ResponseEntity<Void> clearCart(@PathVariable String userId) {
+    public ResponseEntity<ApiResponse<Void>> clearCart(@PathVariable String userId) {
         cartService.clearCart(userId);
 
         List<CartItem> items = cartService.getItemsByUserId(userId);
@@ -74,13 +76,13 @@ public class CartController {
         CartClearedEvent event = new CartClearedEvent(userId, totalQuantity, "Cart cleared successfully.");
         cartEventProducer.sendCartClearedEvent(event);
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success(null, "Cart cleared successfully"));
     }
 
 
     @Operation(summary = "Pay and Checkout")
     @PostMapping("/checkout")
-    public ResponseEntity<CheckoutResponse> checkout(@RequestBody CheckoutRequest request) {
+    public ResponseEntity<ApiResponse<CheckoutResponse>> checkout(@Valid @RequestBody CheckoutRequest request) {
         CheckoutResponse response = cartService.checkout(request);
         List<CartItem> items = cartService.getItemsByUserId(request.getUserId());
 
@@ -93,6 +95,6 @@ public class CartController {
                 )
         );
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success(response, "Checkout successful"));
     }
 }
