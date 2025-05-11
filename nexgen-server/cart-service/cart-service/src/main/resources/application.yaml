@@ -101,4 +101,6 @@ logging:
     root: INFO
     org.springframework.kafka: INFO
     org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 
