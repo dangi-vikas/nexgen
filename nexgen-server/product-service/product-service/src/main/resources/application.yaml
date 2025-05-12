@@ -1,5 +1,5 @@
 server:
-  port: ${USER_SERVICE_PORT:8083}
+  port: ${PRODUCT_SERVICE_PORT:8083}
 
 spring:
   application:
@@ -58,15 +58,21 @@ management:
       exposure:
         include: health, info, prometheus
   metrics:
+    tags:
+      application: product-service
     export:
       prometheus:
         enabled: true
   endpoint:
     prometheus:
       enabled: true
+    health:
+      show-details: always
 
 logging:
   level:
     root: INFO
     org.springframework.kafka: INFO
     org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"

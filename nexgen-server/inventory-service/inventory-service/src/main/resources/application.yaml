@@ -44,12 +44,6 @@ springdoc:
     operationsSorter: method
     tagsSorter: alpha
 
-logging:
-  level:
-    root: INFO
-    org.springframework.kafka: INFO
-    org.hibernate.SQL: DEBUG
-
 topic:
   inventory-events: inventory-events-topic
 
@@ -57,10 +51,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: "*"
+        include: health, info, prometheus, metrics
+  metrics:
+    tags:
+      application: inventory-service
+    export:
+      prometheus:
+        enabled: true
   endpoint:
+    prometheus:
+      enabled: true
     health:
       show-details: always
+
+logging:
+  level:
+    root: INFO
+    org.springframework.kafka: INFO
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
 
 prometheus:
   image: prom/prometheus

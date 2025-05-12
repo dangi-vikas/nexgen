@@ -40,3 +40,28 @@ jwt:
 springdoc:
   swagger-ui.path: /swagger-ui.html
   api-docs.path: /v3/api-docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  metrics:
+    tags:
+      application: user-service
+    export:
+      prometheus:
+        enabled: true
+  endpoint:
+    prometheus:
+      enabled: true
+    health:
+      show-details: always
+
+logging:
+  level:
+    root: INFO
+    org.springframework.kafka: INFO
+    org.hibernate.SQL: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
