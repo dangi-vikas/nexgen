@@ -17,3 +17,11 @@ scrape_configs:
           job: cart-service
           __path__: /var/logs/cart-service/application.log
 
+  - job_name: kong-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: kong
+          __path__: /var/logs/kong-gateway-service/*.log
+
