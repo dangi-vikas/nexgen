@@ -203,8 +203,8 @@ nexgen/
 ├── user-service/
 ├── inventory-service/
 ├── product-service/     
-├── cart-service/        # (planned)
-├── order-service/       # (loading)
+├── cart-service/        
+├── order-service/     
 ├── notification-service/# (planned)
 └── api-gateway/ (Kong)
 ```
