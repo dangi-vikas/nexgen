@@ -1,6 +1,6 @@
 # NexGen E-Commerce Microservices Platform
 
-NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Server, Redis, Kafka, and Docker. It has five independently buildable services. The target design is event-driven and gateway-fronted, but several integrations described below are **not implemented yet**.
+NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Server, Redis, Kafka, and Docker. It has six independently buildable services. The commercial core (checkout, stock reservation, order confirmation, notifications) is **event-driven over Kafka**; payment authorization and the API gateway are still missing.
 
 > **Project status (2026-10-29): NOT PRODUCTION READY.**
 > The authoritative assessment is [`docs/PRODUCTION_READINESS_AUDIT.md`](docs/PRODUCTION_READINESS_AUDIT.md). It documents remaining gaps (deployment hardening, E2E/Kong/runtime verification, integration tests with live infra).
@@ -30,7 +30,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 - **Observability**: File-based logging; Loki/Promtail cover only cart-service and Kong.
 - **Resilience**: Spring Cloud Resilience4j in cart-service only; not a system-wide guarantee.
 - **Documentation**: Swagger/OpenAPI (security schemes are currently configured only for user-service).
-- **Orchestration Pattern**: Saga is **not implemented**; see audit findings C-06, C-07, and H-05.
+- **Orchestration Pattern**: Choreographed saga over Kafka (order → inventory → order → cart/notification); payment is not part of it yet.
 
 ---
 
@@ -40,7 +40,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 - **Authentication**: JWT access/refresh login, rotation and logout revocation (hardened in Batch 1)
 - **Features**: Register, login, refresh, logout, update profile, change password, get current profile
 - **Security**: Spring Security; access/refresh token types, issuer/audience checks, hashed refresh and blacklist state in Redis, server-assigned `ROLE_USER`
-- **Events**: Fire-and-forget Kafka messages for registration, login, profile update, and password change
+- **Events**: Typed JSON account events for registration, login, profile update and password change, written to a transactional outbox and published to `user-registration`, `user-login`, `user-profile-updated`, `user-password-changed`; consumed by notification-service
 - **Caching**: User-profile caching was removed in Batch 1 to avoid stale/sensitive cache entries
 - **Swagger**: Integrated; bearer scheme configured
 - **Monitoring**: No Actuator dependency yet; Prometheus/Grafana are **not** wired for this service
@@ -48,7 +48,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 ### 2. **Inventory Service**
 - **CRUD**: Create, update, delete, and get inventory items
 - **Pagination**: Supported for listing inventory items
-- **Events**: Kafka messages for create/update/delete and stock updates
+- **Events**: Owns stock. Consumes `order-created` to reserve, `order-confirmed` to deduct and `order-cancelled` to release, publishing `inventory-reserved` / `inventory-rejected` (the order service waits for those); also consumes `product-created` / `product-updated` / `product-deleted` and publishes `inventory-events` for the catalogue mirror
 - **Caching**: Redis caching for get, update, and delete operations
 - **Security**: Resource server (Batch 2). Reads require a valid access token; writes require `ROLE_ADMIN` or `ROLE_INTERNAL`
 - **Swagger**: Integrated; bearer scheme is **not yet documented**
@@ -57,7 +57,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 ### 3. **Product Service**
 - **CRUD**: Create, update, delete, and get products
 - **Pagination**: Supported for listing products
-- **Events**: Kafka messages for create/update/delete
+- **Events**: Publishes `product-created` / `product-updated` / `product-deleted` from the outbox; consumes `inventory-events` to keep its displayed quantity in step with the stock ledger
 - **Caching**: Redis caching for get, update, and delete operations
 - **Security**: Resource server (Batch 2). Product reads are public; writes require `ROLE_ADMIN`
 - **Swagger**: Integrated; bearer scheme is **not yet documented**
@@ -65,33 +65,33 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 
 ### 4. **Cart Service**
 - **Features**: Add/remove items, update quantity, calculate total, simulated checkout
-- **Integration**: Product/Inventory/Order integration is **not implemented**; checkout still trusts client-supplied prices and returns simulated `SUCCESS` (audit C-06)
+- **Integration**: Checkout asks the order service to create the order (the client needs an order number immediately) and keeps the cart until `order-confirmed` arrives, so a rejected reservation leaves the cart intact
 - **Caching**: Redis caching for cart reads and writes
 - **Security**: Resource server (Batch 2). All cart endpoints require a valid access token and only allow the authenticated subject to access its own cart
 - **Swagger**: Integrated; bearer scheme is **not yet documented**
-- **Saga Coordinator**: **Not implemented**
+- **Saga Participation**: Consumes `order-confirmed` (clear cart) and `product-deleted` (drop the product); publishes `cart-checkout` after an accepted checkout
 - **Monitoring**: Actuator and Prometheus registry present; Prometheus scrapes this service
 
 ### 5. **Order Service**
 - **Features**: Create, retrieve, cancel, and update orders; order status history
-- **Events**: Order events are published, but inventory/payment/notification consumers do not exist
+- **Events**: Publishes one `order-created` per order from the outbox, then `order-confirmed` / `order-cancelled` / `order-status-updated`; consumes `inventory-reserved` and `inventory-rejected` to drive the status transition
 - **Payment**: **Not implemented**; there is no payment provider integration
-- **Failure Handling**: Compensating transactions are **not implemented**
-- **Resilience**: No service-to-service calls; retry/circuit breaker are **not wired**
+- **Failure Handling**: `inventory-rejected` cancels the order with the rejection reason and publishes `order-cancelled`, which makes inventory release whatever it had reserved
+- **Resilience**: Stock is no longer reserved over HTTP; the only synchronous call left is the product-price lookup when an order is created
 - **Security**: Resource server (Batch 2). Creation derives `userId` from the access token; reads/cancel/history are owner-only unless the caller has `ROLE_ADMIN`/`ROLE_INTERNAL`; status updates require `ROLE_ADMIN`/`ROLE_INTERNAL`
 - **Swagger**: Integrated; bearer scheme is **not yet documented**
 - **Monitoring**: Actuator and Prometheus registry present; Prometheus scrapes this service
 
-### 6. **Notification Service** *(Planned)*
-- **Status**: Not implemented; no source directory or deployed consumer exists
-- **Planned features**: Email/SMS/in-app notifications, Kafka subscriptions, retry
-- **Swagger/Monitoring**: Not present
+### 6. **Notification Service**
+- **Status**: Implemented as a pure Kafka consumer (no REST surface, no search or checkout logic)
+- **Events consumed**: `cart-checkout`, `order-created`, `order-confirmed`, `order-cancelled`, `order-status-updated`, `user-registration`, `user-login`, `user-profile-updated`, `user-password-changed`; each notification is deduplicated by `eventId` and stored in `notifications`
+- **Not included**: actual email/SMS delivery (no provider integration); the service records the message that would be sent
 
 ---
 
 ## ⚙️ Architecture
 
-The diagram below is the **target** design. Kong, Notification, and the synchronous integration paths are not working end-to-end in the current code (see audit C-08 and C-06).
+The Kafka paths below are implemented. Kong automation is still non-functional, and cross-service runtime behaviour has not been verified because the infrastructure was not started.
 
 ```
                +--------------------------+
@@ -145,21 +145,21 @@ Database: MS SQL Server (Per service)
 ## 🛡 Resilience
 
 * Resilience4j is used only in cart-service.
-* The Kafka retry queue is not a reliable outbox; entries can be lost and there is no dead-letter topic.
-* There are no service-to-service HTTP calls, so timeout/circuit-breaker claims for downstream dependencies are not applicable yet.
+* Every service publishes domain events through a transactional outbox: the row commits with the state change, the publisher awaits the send result, retries every 2s and moves unrecoverable rows to FAILED after 10 attempts. Consumers retry via `DefaultErrorHandler` and dead-letter to `<topic>.DLT`.
+* Synchronous calls remain only where the caller needs an immediate answer: cart→order (checkout command) and cart/order→product (price lookup). Stock reservation, order confirmation and cart clearing are asynchronous.
 * No backpressure, rate limiting, or bulkhead configuration is validated in production conditions.
 
 ## 🔀 Event-Driven Saga Pattern (Choreography)
 
-The Saga is **not implemented**. There is no payment service, no inventory reservation/compensation consumer, and no notification consumer. Order events are published fire-and-forget. The target flow is:
+Checkout is a choreographed saga over Kafka:
 
-* Order Service publishes an order event.
-* Inventory Service would reserve stock and publish a result.
-* A payment component would authorize payment.
-* Notification Service would send confirmation.
-* Compensation would run on failure.
+* Order Service commits the order as `CREATED` and publishes `order-created` (items included).
+* Inventory Service consumes it, reserves stock atomically and publishes `inventory-reserved`, or publishes `inventory-rejected` with the reason.
+* Order Service consumes that answer: `inventory-reserved` → `CONFIRMED` + `order-confirmed`; `inventory-rejected` → `CANCELLED` + `order-cancelled`.
+* Inventory consumes `order-confirmed` to deduct stock and `order-cancelled` to release it; cart consumes `order-confirmed` to clear itself; notification-service notifies the customer at every step.
+* Compensation is the rejection path: the order is cancelled and `order-cancelled` releases any partial reservation. A payment step does not exist yet, so `paymentStatus` is reported as `NOT_IMPLEMENTED`.
 
-Do not rely on this flow until the audit's Critical/High eventing findings are closed.
+Every step is idempotent: events carry an `eventId` that consumers record in `processed_events`, reservations are keyed by order number, and status changes to an already-applied status are no-ops.
 
 
 ## 🚀 Getting Started
@@ -179,7 +179,8 @@ Typical outline:
 cp .env.example .env
 # Edit .env: set strong database/Kong passwords and a random JWT_SECRET of at least 32 bytes.
 docker compose up -d mssql redis zookeeper kafka
-# Create the five per-service databases manually. No SQL init/migration scripts exist.
+# Create the six per-service databases manually: userdb, inventorydb, productdb, cartdb, orderdb, notificationdb.
+# Schemas are applied by Flyway migrations on startup (src/main/resources/db/migration).
 ```
 
 Build and run one service at a time:
@@ -199,7 +200,7 @@ cd nexgen-server/<service>/<service>
 .\mvnw.cmd -B test
 ```
 
-**Verified 2026-10-26:** 161 tests run, 156 passed, 5 skipped, 0 failures/errors across the five services. The five skips are the `*ApplicationTests` context tests, disabled with an explicit reason because they require SQL Server, Redis, and Kafka; they will be replaced by Docker/Testcontainers integration tests in a later batch. `.\mvnw.cmd -B -DskipTests package` succeeds for all five services. Runtime and cross-service behavior are **not** verified because the infrastructure was not started.
+**Verified 2026-11-03:** 165 tests run, 160 passed, 5 skipped, 0 failures/errors across the six services. The five skips are the `*ApplicationTests` context tests, disabled with an explicit reason because they require SQL Server, Redis, and Kafka. `./mvnw -DskipTests package` succeeds for all six services. Runtime and cross-service behavior are **not** verified because the infrastructure was not started: no broker was contacted and no end-to-end checkout was executed.
 
 ---
 
@@ -211,18 +212,18 @@ cd nexgen-server/<service>/<service>
 - Role-gated catalog/inventory writes and self-only cart access (Batch 2)
 - Order ownership checks with token-derived `userId` (Batch 2)
 - Server-side role assignment for registration; profile response DTOs
-- Kafka event publishing from services (fire-and-forget)
+- Transactional outbox with a retrying, failure-aware publisher in every service, and idempotent consumers keyed on `eventId`
 - Redis caching in product/cart/order; user-profile cache removed in Batch 1
-- Swagger/OpenAPI in the five services (only user-service documents auth)
+- Swagger/OpenAPI in the five HTTP services (only user-service documents auth); notification-service has no REST surface by design
 - CRUD APIs and pagination for products, inventory, and orders
 
 **Not implemented / partial**
 - Admin/internal account provisioning and audited admin flows
 - Server-side pricing, stock reservation, and real payment processing during checkout
-- Order idempotency and reliable event delivery/outbox
+- Payment authorization (there is no payment service or provider, so checkout stops at `CONFIRMED`)
 - Database migrations or initialization scripts
 - Dockerfiles, CI, or a working Kong setup
-- Notification service, saga orchestration, and compensation
+- An API gateway that is actually wired (Kong automation remains broken)
 - Production observability (only partial Actuator/Prometheus coverage)
 - Docker/Testcontainers integration and E2E tests (context tests are currently skipped)
 
@@ -234,12 +235,12 @@ The prioritized plan is in [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATIO
 
 - [x] Add authentication/authorization to all services and enforce resource ownership (Batch 2; isolated tests only)
 - [ ] Replace client-trusted checkout with server-side price/stock validation
-- [ ] Make order creation idempotent and make Kafka publishing reliable
+- [x] Make Kafka publishing reliable (outbox, awaited sends, retries, dead-letter) and consumers idempotent
 - [ ] Add database migrations and remove exposed/default infrastructure credentials
 - [ ] Add Dockerfiles, CI, and a tested Kong configuration
 - [ ] Add Actuator, dashboards, and actionable alerts
 - [ ] Add integration/E2E tests with Testcontainers
-- [ ] Implement notification/payment/saga components only after critical fixes
+- [x] Implement the event-driven checkout saga and the notification consumer; payment is still missing
 
 ---
 
@@ -248,9 +249,9 @@ The prioritized plan is in [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATIO
 - DTOs are used for user-service requests/responses; other services still expose entities in several endpoints.
 - Exception handling exists, but not all services return consistent error contracts.
 - Redis caching is used without a uniform TTL/invalidation strategy.
-- Kafka publishing is decoupled but not transactional or retried safely.
+- Every event type has a producer and at least one consumer; events without a consumer were removed rather than left as noise.
 - Logging is file-based; there is no correlation-ID propagation or centralized retention policy.
-- The codebase is modular by service, but several documented integration claims are not implemented.
+- The codebase is modular by service and the Kafka topology is implemented end to end in code; only automated cross-service tests are missing.
 - **Not yet achieved:** verified end-to-end security (the gateway and runtime paths are not tested), system-wide resilience, or production deployment.
 
 ---
@@ -264,6 +265,7 @@ nexgen/
 │   ├── inventory-service/inventory-service/
 │   ├── product-service/product-service/
 │   ├── cart-service/cart-service/
+│   ├── notification-service/notification-service/
 │   └── order-service/order-service/
 ├── kong-automation/          # currently non-functional setup scripts
 ├── prometheus/               # Prometheus config
@@ -275,14 +277,14 @@ nexgen/
 └── .env.example              # configuration template (no real secrets)
 ```
 
-There is no `notification-service/` or application `api-gateway/` source directory yet.
+There is no application `api-gateway/` source directory yet; `kong-automation/` does not currently produce a working gateway.
 
 ---
 
 ## 👨‍💻 Author
 
 **Vikas Dangi**  
-Java Developer | Spring Boot | React | Microservices | Azure
+Java Developer | Spring Boot | React | Microservices | AWS
 
 📧 Connect with me on [LinkedIn](https://www.linkedin.com/in/vikasdangi/)
 ---
