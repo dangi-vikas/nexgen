@@ -3,14 +3,13 @@ package com.nexgen.cart_service.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexgen.cart_service.dto.OrderConfirmedEvent;
 import com.nexgen.cart_service.dto.ProductDeletedEvent;
-import com.nexgen.cart_service.repository.CartItemRepository;
+import com.nexgen.cart_service.service.CartReactionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Cart reactions to other services' events.
@@ -29,10 +28,9 @@ public class CartEventsListener {
 
     private final ObjectMapper objectMapper;
     private final ProcessedEventGuard guard;
-    private final CartItemRepository cartRepository;
+    private final CartReactionService cartReactions;
 
     @KafkaListener(topics = "${topic.order-confirmed}", groupId = "cart-service")
-    @Transactional
     public void onOrderConfirmed(ConsumerRecord<String, String> record) {
         OrderConfirmedEvent event = read(record, OrderConfirmedEvent.class);
         if (event == null || guard.isProcessed(event.getEventId())) {
@@ -44,17 +42,15 @@ public class CartEventsListener {
                 log.warn("order-confirmed {} has no userId, cannot clear a cart", event.getOrderNumber());
                 return;
             }
-            log.info("Order {} confirmed, clearing cart of user {}", event.getOrderNumber(), event.getUserId());
-            cartRepository.deleteByUserId(event.getUserId());
+            cartReactions.clearCartForUser(event.getUserId());
         });
         guard.markProcessed(event.getEventId(), "order-confirmed");
     }
 
     @KafkaListener(topics = "${topic.product-deleted}", groupId = "cart-service")
-    @Transactional
     public void onProductDeleted(ConsumerRecord<String, String> record) {
         ProductDeletedEvent event = read(record, ProductDeletedEvent.class);
-        if (event == null) {
+        if (event == null || event.getSkuCode() == null) {
             return;
         }
         String dedupeKey = event.getEventId() != null ? event.getEventId() : "product-deleted:" + event.getSkuCode();
@@ -62,8 +58,7 @@ public class CartEventsListener {
             log.debug("Duplicate product-deleted ignored for {}", event.getSkuCode());
             return;
         }
-        log.info("Product {} deleted, removing it from all carts", event.getSkuCode());
-        cartRepository.deleteByProductId(event.getSkuCode());
+        cartReactions.removeProductFromAllCarts(event.getSkuCode());
         guard.markProcessed(dedupeKey, "product-deleted");
     }
 
@@ -75,6 +70,7 @@ public class CartEventsListener {
         try {
             return objectMapper.readValue(record.value(), type);
         } catch (Exception e) {
+            // Fail loudly so DefaultErrorHandler retries and finally dead-letters it.
             throw new IllegalArgumentException("Unreadable " + type.getSimpleName() + " from " + record.topic(), e);
         }
     }

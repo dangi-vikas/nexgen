@@ -14,6 +14,8 @@ public class KafkaErrorConfig {
     public DefaultErrorHandler errorHandler(KafkaTemplate<Object, Object> template) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(template,
                 (record, ex) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
-        return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
+        // inventory-reserved can overtake the order commit by a moment; a few seconds of
+        // retries keeps that race out of the dead-letter topic.
+        return new DefaultErrorHandler(recoverer, new FixedBackOff(2000L, 5L));
     }
 }

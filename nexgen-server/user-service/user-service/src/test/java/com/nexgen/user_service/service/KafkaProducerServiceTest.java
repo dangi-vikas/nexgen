@@ -12,9 +12,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class KafkaProducerServiceTest {
@@ -27,6 +30,10 @@ class KafkaProducerServiceTest {
     @BeforeEach
     void setUp() {
         service = new KafkaProducerService(outboxService);
+        // The real writer returns the id it stored; the mock must do the same so the
+        // producer's returned id can be compared with the enqueued one.
+        when(outboxService.enqueue(anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), any(), any(), any())).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
