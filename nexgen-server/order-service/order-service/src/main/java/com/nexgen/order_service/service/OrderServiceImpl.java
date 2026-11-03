@@ -210,6 +210,7 @@ public class OrderServiceImpl implements OrderService {
                 .orderNumber(order.getOrderNumber())
                 .userId(order.getUserId())
                 .status(OrderStatus.CONFIRMED)
+                .totalAmount(order.getTotalAmount())
                 .timestamp(Instant.now().toEpochMilli())
                 .correlationId(MDC.get(CORRELATION_ID))
                 .build());
@@ -235,6 +236,7 @@ public class OrderServiceImpl implements OrderService {
                 .orderNumber(order.getOrderNumber())
                 .userId(order.getUserId())
                 .status(OrderStatus.CANCELLED)
+                .totalAmount(order.getTotalAmount())
                 .timestamp(Instant.now().toEpochMilli())
                 .correlationId(MDC.get(CORRELATION_ID))
                 .reason(reason == null ? "Inventory reservation rejected" : reason)
@@ -245,6 +247,69 @@ public class OrderServiceImpl implements OrderService {
     public List<OrderStatusHistory> getOrderHistory(String orderNumber, String requesterId, boolean privileged) {
         findOrderForRequester(orderNumber, requesterId, privileged);
         return historyRepository.findByOrderNumberOrderByChangedAtDesc(orderNumber);
+    }
+
+    @Override
+    @CacheEvict(value = "ordersByUser", allEntries = true)
+    @Transactional
+    public void markPaid(String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new OrderNotFoundException(orderNumber));
+
+        if (order.getStatus() == OrderStatus.PAID) {
+            return;
+        }
+        if (order.getStatus() != OrderStatus.CONFIRMED) {
+            log.info("Order {} is {}, ignoring payment-authorized", orderNumber, order.getStatus());
+            return;
+        }
+
+        order.setStatus(OrderStatus.PAID);
+        orderRepository.save(order);
+        saveHistory(order, OrderStatus.CONFIRMED, OrderStatus.PAID, "payment-service");
+
+        kafkaProducerService.sendOrderUpdatedEvent(OrderEvent.builder()
+                .orderNumber(order.getOrderNumber())
+                .userId(order.getUserId())
+                .status(OrderStatus.PAID)
+                .totalAmount(order.getTotalAmount())
+                .timestamp(Instant.now().toEpochMilli())
+                .correlationId(MDC.get(CORRELATION_ID))
+                .build());
+    }
+
+    @Override
+    @CacheEvict(value = "ordersByUser", allEntries = true)
+    @Transactional
+    public void cancelAfterPaymentFailure(String orderNumber, String reason) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new OrderNotFoundException(orderNumber));
+
+        if (order.getStatus() != OrderStatus.CONFIRMED) {
+            log.info("Order {} is {}, ignoring payment-failed", orderNumber, order.getStatus());
+            return;
+        }
+
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        saveHistory(order, OrderStatus.CONFIRMED, OrderStatus.CANCELLED, "payment-service");
+
+        // Publishing order-cancelled makes inventory release the reservation.
+        kafkaProducerService.sendOrderCancelledEvent(OrderEvent.builder()
+                .orderNumber(order.getOrderNumber())
+                .userId(order.getUserId())
+                .status(OrderStatus.CANCELLED)
+                .totalAmount(order.getTotalAmount())
+                .timestamp(Instant.now().toEpochMilli())
+                .correlationId(MDC.get(CORRELATION_ID))
+                .reason(reason == null ? "Payment failed" : reason)
+                .build());
+    }
+
+    @Override
+    public void recordRefund(String orderNumber, String reason) {
+        log.info("Refund recorded for order {}: {}", orderNumber, reason);
+        meterRegistry.counter("order.refunded").increment();
     }
 
     private void transition(Order order, OrderStatus newStatus, String changedBy, String reason) {
@@ -264,6 +329,7 @@ public class OrderServiceImpl implements OrderService {
                 .orderNumber(order.getOrderNumber())
                 .userId(order.getUserId())
                 .status(newStatus)
+                .totalAmount(order.getTotalAmount())
                 .timestamp(Instant.now().toEpochMilli())
                 .correlationId(MDC.get(CORRELATION_ID))
                 .reason(reason)

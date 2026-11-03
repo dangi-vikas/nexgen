@@ -22,4 +22,13 @@ public interface OrderService {
 
     /** Applied when inventory rejects the stock reservation. */
     void cancelAfterInventoryRejection(String orderNumber, String reason);
+
+    /** Applied when payment-service authorises the charge. */
+    void markPaid(String orderNumber);
+
+    /** Applied when payment-service declines the charge; the order is cancelled. */
+    void cancelAfterPaymentFailure(String orderNumber, String reason);
+
+    /** Records a refund after payment-service confirms it, without changing the status. */
+    void recordRefund(String orderNumber, String reason);
 }

@@ -27,6 +27,9 @@ public class OrderEvent {
 
     private OrderStatus status;
 
+    /** Order total; payment-service charges exactly this amount, never a client value. */
+    private java.math.BigDecimal totalAmount;
+
     private Long timestamp;
 
     private String correlationId;

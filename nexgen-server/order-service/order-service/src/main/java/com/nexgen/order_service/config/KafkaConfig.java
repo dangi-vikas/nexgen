@@ -26,6 +26,15 @@ public class KafkaConfig {
     @Value("${topic.inventory-rejected:inventory-rejected}")
     private String inventoryRejected;
 
+    @Value("${topic.payment-authorized:payment-authorized}")
+    private String paymentAuthorized;
+
+    @Value("${topic.payment-failed:payment-failed}")
+    private String paymentFailed;
+
+    @Value("${topic.payment-refunded:payment-refunded}")
+    private String paymentRefunded;
+
     @Bean
     public NewTopic orderCreatedTopic() {
         return TopicBuilder.name(orderCreated).partitions(3).replicas(1).build();
@@ -54,5 +63,20 @@ public class KafkaConfig {
     @Bean
     public NewTopic inventoryRejectedTopic() {
         return TopicBuilder.name(inventoryRejected).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic paymentAuthorizedTopic() {
+        return TopicBuilder.name(paymentAuthorized).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic paymentFailedTopic() {
+        return TopicBuilder.name(paymentFailed).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic paymentRefundedTopic() {
+        return TopicBuilder.name(paymentRefunded).partitions(3).replicas(1).build();
     }
 }

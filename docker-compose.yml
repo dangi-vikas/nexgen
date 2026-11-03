@@ -17,6 +17,15 @@ services:
     ports:
       - "${REDIS_PORT}:6379"
 
+  # Free, offline SMTP sink for local development: every notification email is
+  # captured here and readable at http://localhost:8025. No provider account needed.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: mailpit
+    ports:
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper

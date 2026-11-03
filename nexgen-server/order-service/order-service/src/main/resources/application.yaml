@@ -67,6 +67,9 @@ topic:
   order-status-updated: order-status-updated
   inventory-reserved: inventory-reserved
   inventory-rejected: inventory-rejected
+  payment-authorized: payment-authorized
+  payment-failed: payment-failed
+  payment-refunded: payment-refunded
 
 outbox:
   publish:
