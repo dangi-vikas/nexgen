@@ -5,6 +5,7 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 
 @Entity
 @Data
@@ -27,7 +28,8 @@ public class Product implements Serializable {
 
     @NotNull(message = "Price is required")
     @DecimalMin(value = "0.0", inclusive = false, message = "Price must be greater than 0")
-    private Double price;
+    @Column(precision = 19, scale = 2)
+    private BigDecimal price;
 
     @NotNull(message = "Quantity is required")
     @Min(value = 0, message = "Quantity must be zero or more")

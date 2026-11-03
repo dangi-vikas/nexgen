@@ -1,5 +1,6 @@
 package com.nexgen.order_service.service;
 
+import com.nexgen.order_service.dto.OrderCreatedEvent;
 import com.nexgen.order_service.dto.OrderEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +13,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class OrderKafkaProducerService {
 
-    private final KafkaTemplate<String, OrderEvent> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     @Value("${topic.order-created}")
     private String orderCreatedTopic;
@@ -25,16 +26,21 @@ public class OrderKafkaProducerService {
 
     public void sendOrderCreatedEvent(OrderEvent event) {
         log.info("Publishing Order Created event: {}", event);
-        kafkaTemplate.send(orderCreatedTopic, event);
+        kafkaTemplate.send(orderCreatedTopic, event.getOrderNumber(), event);
+    }
+
+    public void sendOrderCreatedEvent(OrderCreatedEvent event) {
+        log.info("Publishing Order Created event: {}", event);
+        kafkaTemplate.send(orderCreatedTopic, event.getOrderNumber(), event);
     }
 
     public void sendOrderCancelledEvent(OrderEvent event) {
         log.info("Publishing Order Cancelled event: {}", event);
-        kafkaTemplate.send(orderCancelledTopic, event);
+        kafkaTemplate.send(orderCancelledTopic, event.getOrderNumber(), event);
     }
 
     public void sendOrderUpdatedEvent(OrderEvent event) {
         log.info("Publishing Order Status Update event: {}", event);
-        kafkaTemplate.send(orderStatusUpdatedTopic, event);
+        kafkaTemplate.send(orderStatusUpdatedTopic, event.getOrderNumber(), event);
     }
 }

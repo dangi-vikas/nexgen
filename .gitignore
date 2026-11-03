@@ -1,2 +1,12 @@
-.idea
+.idea/
+*.iml
 .env
+.env.*
+!.env.example
+logs/
+**/target/
+*.log
+*.class
+.DS_Store
+Thumbs.db
+.vscode/

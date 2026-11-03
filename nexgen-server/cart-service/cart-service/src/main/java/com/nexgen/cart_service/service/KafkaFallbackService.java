@@ -9,13 +9,18 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class KafkaFallbackService {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(KafkaFallbackService.class);
 
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+
+    public KafkaFallbackService(RedisTemplate<String, String> redisTemplate, ObjectMapper objectMapper) {
+        this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
+    }
 
     private static final String REDIS_FAILED_EVENT_QUEUE = "FAILED_KAFKA_EVENTS";
 

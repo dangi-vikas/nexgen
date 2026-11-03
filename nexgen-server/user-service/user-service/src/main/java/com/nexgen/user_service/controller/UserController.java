@@ -2,10 +2,11 @@ package com.nexgen.user_service.controller;
 
 import com.nexgen.user_service.dto.ChangePasswordRequest;
 import com.nexgen.user_service.dto.UpdateProfileRequest;
+import com.nexgen.user_service.dto.UserProfileResponse;
 import com.nexgen.user_service.dto.UserRegistrationRequest;
-import com.nexgen.user_service.entity.User;
 import com.nexgen.user_service.service.UserService;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,36 +18,35 @@ import java.security.Principal;
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
-@CrossOrigin()
-@Tag(name = "User Controller", description = "Register endpoints")
+@Tag(name = "User Controller", description = "Registration and profile endpoints")
 public class UserController {
+
     private final UserService userService;
 
     @PostMapping("/register")
-    public ResponseEntity<User> register(@RequestBody UserRegistrationRequest request) {
+    public ResponseEntity<UserProfileResponse> register(@Valid @RequestBody UserRegistrationRequest request) {
         return ResponseEntity.ok(userService.registerUser(request));
     }
 
     @PutMapping("/update")
-    @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<String> updateProfile(@RequestBody UpdateProfileRequest request, Principal principal) {
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public ResponseEntity<String> updateProfile(@Valid @RequestBody UpdateProfileRequest request,
+                                                 Principal principal) {
         userService.updateUserProfile(principal.getName(), request);
         return ResponseEntity.ok("Profile updated successfully");
     }
 
     @PutMapping("/change-password")
-    @PreAuthorize("hasRole('USER')")
-    public ResponseEntity<String> changePassword(@RequestBody ChangePasswordRequest request, Principal principal) {
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public ResponseEntity<String> changePassword(@Valid @RequestBody ChangePasswordRequest request,
+                                                  Principal principal) {
         userService.changeUserPassword(principal.getName(), request);
         return ResponseEntity.ok("Password changed successfully");
     }
 
-    @PreAuthorize("hasRole('USER')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @GetMapping("/me")
-    public ResponseEntity<User> getCurrentUserProfile(Authentication authentication) {
-        String username = authentication.getName();
-        User user = userService.getUserByUsername(username);
-        return ResponseEntity.ok(user);
+    public ResponseEntity<UserProfileResponse> getCurrentUserProfile(Authentication authentication) {
+        return ResponseEntity.ok(userService.getUserProfile(authentication.getName()));
     }
-
 }

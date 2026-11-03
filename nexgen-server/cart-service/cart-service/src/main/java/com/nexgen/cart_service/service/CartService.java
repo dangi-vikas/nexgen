@@ -12,5 +12,6 @@ public interface CartService {
     CartItemResponse removeItemQuantity(String userId, String productId, int quantity);
     void clearCart(String userId);
     CheckoutResponse checkout(CheckoutRequest request);
+    CheckoutResponse checkout(CheckoutRequest request, String authorizationHeader);
     List<CartItem> getItemsByUserId(String userId);
 }

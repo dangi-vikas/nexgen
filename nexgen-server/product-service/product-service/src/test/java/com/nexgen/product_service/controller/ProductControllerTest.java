@@ -2,22 +2,29 @@ package com.nexgen.product_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexgen.product_service.config.PageCacheUtil;
+import com.nexgen.product_service.config.SecurityConfig;
 import com.nexgen.product_service.dto.RedisPageWrapper;
 import com.nexgen.product_service.entity.Product;
 import com.nexgen.product_service.exception.ProductNotFoundException;
 import com.nexgen.product_service.service.ProductService;
+import com.nexgen.product_service.support.JwtTestSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import java.util.List;
 
@@ -28,6 +35,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(ProductController.class)
+@Import(SecurityConfig.class)
+@TestPropertySource(properties = {
+        "jwt.secret=01234567890123456789012345678901",
+        "jwt.issuer=nexgen-user-service",
+        "jwt.audience=nexgen-api"
+})
 class ProductControllerTest {
 
     @Autowired
@@ -47,7 +60,7 @@ class ProductControllerTest {
                 .skuCode("SKU123")
                 .name("Test Product")
                 .description("Description")
-                .price(199.99)
+                .price(java.math.BigDecimal.valueOf(199.99))
                 .quantity(10)
                 .build();
     }
@@ -58,10 +71,28 @@ class ProductControllerTest {
         when(productService.createProduct(any(Product.class))).thenReturn(product);
 
         mockMvc.perform(post("/api/v1/products")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(product)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.skuCode").value("SKU123"));
+    }
+
+    @Test
+    void createProductWithoutTokenIsUnauthorized() throws Exception {
+        mockMvc.perform(post("/api/v1/products")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void createProductWithUserRoleIsForbidden() throws Exception {
+        mockMvc.perform(post("/api/v1/products")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isForbidden());
     }
 
     // PUT /update
@@ -70,6 +101,7 @@ class ProductControllerTest {
         when(productService.updateProduct(eq("SKU123"), any(Product.class))).thenReturn(product);
 
         mockMvc.perform(put("/api/v1/products/SKU123")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(product)))
                 .andExpect(status().isOk())
@@ -81,7 +113,8 @@ class ProductControllerTest {
     void deleteProduct_ReturnsNoContent() throws Exception {
         doNothing().when(productService).deleteProduct("SKU123");
 
-        mockMvc.perform(delete("/api/v1/products/SKU123"))
+        mockMvc.perform(delete("/api/v1/products/SKU123")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isNoContent());
     }
 
@@ -114,5 +147,46 @@ class ProductControllerTest {
         mockMvc.perform(get("/api/v1/products?page=0&size=10"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].skuCode").value("SKU123"));
+    }
+
+    @Test
+    void realAdminTokenCanCreateProduct() throws Exception {
+        when(productService.createProduct(any(Product.class))).thenReturn(product);
+
+        mockMvc.perform(post("/api/v1/products")
+                        .header("Authorization", "Bearer " + JwtTestSupport.accessToken("admin", "ROLE_ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void realUserTokenCannotCreateProduct() throws Exception {
+        mockMvc.perform(post("/api/v1/products")
+                        .header("Authorization", "Bearer " + JwtTestSupport.accessToken("user123", "ROLE_USER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void refreshTokenIsRejectedOnProductWrite() throws Exception {
+        mockMvc.perform(post("/api/v1/products")
+                        .header("Authorization", "Bearer " + JwtTestSupport.refreshToken("admin"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void tokenWithWrongAudienceIsRejectedOnProductWrite() throws Exception {
+        String token = JwtTestSupport.token("nexgen-user-service", "some-other-api",
+                "access", "admin", "ROLE_ADMIN");
+
+        mockMvc.perform(post("/api/v1/products")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(product)))
+                .andExpect(status().isUnauthorized());
     }
 }

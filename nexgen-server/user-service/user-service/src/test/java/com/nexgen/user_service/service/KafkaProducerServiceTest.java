@@ -1,27 +1,42 @@
 package com.nexgen.user_service.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.nexgen.user_service.dto.UserLoginEvent;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
-import static org.mockito.Mockito.times;
+import java.time.Instant;
+
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
-@SpringBootTest
-public class KafkaProducerServiceTest {
-    @MockitoBean
+@ExtendWith(MockitoExtension.class)
+class KafkaProducerServiceTest {
+
+    @Mock
     private KafkaTemplate<String, String> kafkaTemplate;
 
-    @Autowired
-    private KafkaProducerService kafkaProducerService;
+    @Test
+    void registrationEventIsPublished() {
+        KafkaProducerService service = new KafkaProducerService(kafkaTemplate, new ObjectMapper());
+
+        service.sendUserRegistrationEvent("john");
+
+        verify(kafkaTemplate).send("user-registration", "New user registered: john");
+    }
 
     @Test
-    void testSendUserRegistrationEvent() {
-        kafkaProducerService.sendUserRegistrationEvent("john");
+    void loginEventIsSerializedAndPublished() {
+        ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+        KafkaProducerService service = new KafkaProducerService(kafkaTemplate, objectMapper);
 
-        verify(kafkaTemplate, times(1))
-                .send("user-registration", "New user registered: john");
+        service.sendLoginEvent(new UserLoginEvent("john", "127.0.0.1", Instant.parse("2026-01-01T00:00:00Z")));
+
+        verify(kafkaTemplate).send(eq("user-login"), contains("\"username\":\"john\""));
     }
 }

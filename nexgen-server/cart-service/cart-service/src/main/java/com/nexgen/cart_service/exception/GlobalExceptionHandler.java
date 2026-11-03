@@ -3,6 +3,7 @@ package com.nexgen.cart_service.exception;
 import com.nexgen.cart_service.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,6 +28,11 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(ApiResponse.error(ex.getMessage()), HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<?>> handleAccessDenied(AccessDeniedException ex) {
+        return new ResponseEntity<>(ApiResponse.error("Access denied"), HttpStatus.FORBIDDEN);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<?>> handleValidationErrors(MethodArgumentNotValidException ex) {
         List<String> errors = ex.getBindingResult()
@@ -41,10 +47,18 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(org.springframework.web.client.ResourceAccessException.class)
+    public ResponseEntity<ApiResponse<?>> handleResourceAccess(org.springframework.web.client.ResourceAccessException ex) {
+        return new ResponseEntity<>(
+                ApiResponse.error("Service unavailable"),
+                HttpStatus.SERVICE_UNAVAILABLE
+        );
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<?>> handleAllUnhandledExceptions(Exception ex) {
         return new ResponseEntity<>(
-                ApiResponse.error("Internal server error", List.of(ex.getMessage())),
+                ApiResponse.error("Internal server error"),
                 HttpStatus.INTERNAL_SERVER_ERROR
         );
     }

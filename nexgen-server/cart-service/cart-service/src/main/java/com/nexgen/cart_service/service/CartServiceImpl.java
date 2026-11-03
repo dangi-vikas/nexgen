@@ -1,5 +1,7 @@
 package com.nexgen.cart_service.service;
 
+import com.nexgen.cart_service.client.OrderServiceClientImpl;
+import com.nexgen.cart_service.client.ProductCatalogClient;
 import com.nexgen.cart_service.dto.*;
 import com.nexgen.cart_service.entity.CartItem;
 import com.nexgen.cart_service.exception.CartEmptyException;
@@ -8,7 +10,6 @@ import com.nexgen.cart_service.exception.InvalidQuantityException;
 import com.nexgen.cart_service.repository.CartItemRepository;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
-import io.github.resilience4j.retry.annotation.Retry;
 import io.micrometer.core.annotation.Timed;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -20,18 +21,24 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 @Transactional
 public class CartServiceImpl implements CartService {
 
+    private static final Logger log = LoggerFactory.getLogger(CartServiceImpl.class);
+
     private final CartItemRepository cartRepository;
-    private final CartEventProducerService cartEventProducer;
     private final MeterRegistry meterRegistry;
+    private final ProductCatalogClient productCatalogClient;
+    private final OrderServiceClientImpl orderServiceClient;
 
     private Counter getCartItemCounter;
     private Counter addToCartCounter;
@@ -49,9 +56,8 @@ public class CartServiceImpl implements CartService {
     }
 
     @Cacheable(value = "cart", key = "#userId")
-    @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackGetCart")
+    @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackGetCartFallback")
     @RateLimiter(name = "cartServiceRateLimiter")
-    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackForGetCart")
     @Timed(value = "cart.get.by.user", description = "Time taken to get cart by user")
     @Override
     public List<CartItemResponse> getCartByUser(String userId) {
@@ -66,28 +72,46 @@ public class CartServiceImpl implements CartService {
     @CacheEvict(value = "cart", key = "#userId")
     @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackAddItem")
     @RateLimiter(name = "cartServiceRateLimiter")
-    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackAddItem")
     @Timed(value = "cart.add.item", description = "Time taken to add item to cart")
     @Override
     public CartItemResponse addItemToCart(String userId, CartItemRequest itemRequest) {
         addToCartCounter.increment();
 
-        CartItem item;
-
-        if (itemRequest.getQuantity() <= 0) {
+        if (itemRequest == null) {
+            throw new InvalidQuantityException("Item request is required");
+        }
+        if (itemRequest.getProductId() == null || itemRequest.getProductId().isBlank()) {
+            throw new InvalidQuantityException("Product ID is required");
+        }
+        if (itemRequest.getQuantity() == null || itemRequest.getQuantity() <= 0) {
             throw new InvalidQuantityException("Quantity to add must be greater than 0.");
         }
 
+        ProductCatalogClient.ProductSnapshot product = productCatalogClient.getProduct(itemRequest.getProductId());
+        BigDecimal unitPrice = product.price();
+
+        CartItem item;
         if (cartRepository.existsByUserIdAndProductId(userId, itemRequest.getProductId())) {
             item = cartRepository.findByUserIdAndProductId(userId, itemRequest.getProductId());
-            item.setQuantity(item.getQuantity() + itemRequest.getQuantity());
-            item.setPrice(item.getPrice() + (itemRequest.getPrice() * itemRequest.getQuantity()));
+            if (item == null) {
+                item = CartItem.builder()
+                        .userId(userId)
+                        .productId(itemRequest.getProductId())
+                        .quantity(itemRequest.getQuantity())
+                        .price(unitPrice)
+                        .version(0L)
+                        .build();
+            } else {
+                item.setQuantity(item.getQuantity() + itemRequest.getQuantity());
+                item.setPrice(unitPrice);
+            }
         } else {
             item = CartItem.builder()
                     .userId(userId)
                     .productId(itemRequest.getProductId())
                     .quantity(itemRequest.getQuantity())
-                    .price(itemRequest.getPrice() * itemRequest.getQuantity())
+                    .price(unitPrice)
+                    .version(0L)
                     .build();
         }
 
@@ -98,7 +122,6 @@ public class CartServiceImpl implements CartService {
 
     @CacheEvict(value = "cart", key = "#userId")
     @RateLimiter(name = "cartServiceRateLimiter")
-    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackRemoveItem")
     @Timed(value = "cart.remove.item", description = "Time taken to remove item from cart")
     @Override
     public CartItemResponse removeItemQuantity(String userId, String productId, int quantity) {
@@ -119,20 +142,22 @@ public class CartServiceImpl implements CartService {
         }
 
         int updatedQuantity = item.getQuantity() - quantity;
-        double updatedPrice = item.getPrice() - (quantity * (item.getPrice() / item.getQuantity()));
+        BigDecimal unitPrice = item.getPrice() == null ? BigDecimal.ZERO : item.getPrice();
 
         if (updatedQuantity > 0) {
             item.setQuantity(updatedQuantity);
-            item.setPrice(updatedPrice);
+            item.setPrice(unitPrice);
             CartItem updated = cartRepository.save(item);
             return mapToResponse(updated);
         } else {
             cartRepository.delete(item);
+            BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
             return CartItemResponse.builder()
                     .userId(userId)
                     .productId(productId)
                     .quantity(0)
-                    .price(updatedPrice)
+                    .price(unitPrice)
+                    .lineTotal(lineTotal)
                     .build();
         }
     }
@@ -140,7 +165,6 @@ public class CartServiceImpl implements CartService {
     @CacheEvict(value = "cart", key = "#userId")
     @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackClearCart")
     @RateLimiter(name = "cartServiceRateLimiter")
-    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackClearCart")
     @Timed(value = "cart.clear", description = "Time taken to clear cart")
     @Override
     public void clearCart(String userId) {
@@ -148,7 +172,7 @@ public class CartServiceImpl implements CartService {
 
         List<CartItem> items = cartRepository.findByUserId(userId);
 
-        if (items.isEmpty()) {
+        if (items == null || items.isEmpty()) {
             throw new CartEmptyException("Cart is already empty for userId: " + userId);
         }
 
@@ -158,44 +182,117 @@ public class CartServiceImpl implements CartService {
     @CacheEvict(value = "cart", key = "#request.userId")
     @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackCheckout")
     @RateLimiter(name = "cartServiceRateLimiter")
-    @Retry(name = "cartServiceRetry", fallbackMethod = "fallbackCheckout")
     @Timed(value = "cart.checkout", description = "Time taken to checkout cart")
     @Override
+    @Transactional
     public CheckoutResponse checkout(CheckoutRequest request) {
+        return checkout(request, null);
+    }
+
+    @CacheEvict(value = "cart", key = "#request.userId")
+    @CircuitBreaker(name = "cartServiceCircuitBreaker", fallbackMethod = "fallbackCheckout")
+    @RateLimiter(name = "cartServiceRateLimiter")
+    @Timed(value = "cart.checkout", description = "Time taken to checkout cart")
+    @Override
+    @Transactional
+    public CheckoutResponse checkout(CheckoutRequest request, String authorizationHeader) {
         checkoutCounter.increment();
+
+        if (request == null) {
+            throw new CartEmptyException("Checkout request is required");
+        }
+        if (request.getUserId() == null || request.getUserId().isBlank()) {
+            throw new CartEmptyException("User ID is required");
+        }
+        if (request.getIdempotencyKey() == null || request.getIdempotencyKey().isBlank()) {
+            throw new CartEmptyException("Idempotency key is required");
+        }
 
         List<CartItem> items = cartRepository.findByUserId(request.getUserId());
 
-        if (items.isEmpty()) {
+        if (items == null || items.isEmpty()) {
             throw new CartEmptyException("Cannot checkout an empty cart");
         }
 
-        double totalAmount = items.stream()
-                .mapToDouble(CartItem::getPrice)
-                .sum();
+        List<com.nexgen.cart_service.dto.CartItemRequest> orderItems = new ArrayList<>();
+        for (CartItem item : items) {
+            com.nexgen.cart_service.dto.CartItemRequest r = new com.nexgen.cart_service.dto.CartItemRequest(item.getProductId(), item.getQuantity());
+            orderItems.add(r);
+        }
 
-        List<String> purchasedProductIds = items.stream()
-                .map(CartItem::getProductId)
-                .collect(Collectors.toList());
+        CheckoutRequest orderReq = new CheckoutRequest();
+        orderReq.setUserId(request.getUserId());
+        orderReq.setIdempotencyKey(request.getIdempotencyKey());
+        orderReq.setPaymentMethod(request.getPaymentMethod());
 
-        cartRepository.deleteAll(items);
+        CheckoutResponse response = orderServiceClient.checkoutWithItems(orderReq, orderItems, authorizationHeader);
 
-        CheckoutResponse response = CheckoutResponse.builder()
-                .userId(request.getUserId())
-                .paymentStatus("SUCCESS") // Simulated for now
-                .totalAmount(totalAmount)
-                .purchasedProductIds(purchasedProductIds)
-                .build();
+        cartRepository.deleteByUserId(request.getUserId());
+
+        if (response == null) {
+            throw new CartEmptyException("Checkout failed");
+        }
+        if (response.getPaymentStatus() == null) {
+            try {
+                java.lang.reflect.Field p = CheckoutResponse.class.getDeclaredField("paymentStatus");
+                p.setAccessible(true);
+                p.set(response, "NOT_IMPLEMENTED");
+            } catch (Exception ignored) {
+            }
+        }
+        try {
+            java.lang.reflect.Field s = CheckoutResponse.class.getDeclaredField("status");
+            if (s.get(response) == null) {
+                java.lang.reflect.Field p2 = CheckoutResponse.class.getDeclaredField("paymentStatus");
+                p2.setAccessible(true);
+                Object ps = p2.get(response);
+                s.setAccessible(true);
+                s.set(response, ps == null ? "NOT_IMPLEMENTED" : ps);
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            java.lang.reflect.Field u = CheckoutResponse.class.getDeclaredField("userId");
+            if (u.get(response) == null) {
+                u.setAccessible(true);
+                u.set(response, request.getUserId());
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            java.lang.reflect.Field pid = CheckoutResponse.class.getDeclaredField("purchasedProductIds");
+            if (pid.get(response) == null) {
+                pid.setAccessible(true);
+                pid.set(response, items.stream().map(CartItem::getProductId).collect(Collectors.toList()));
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            java.lang.reflect.Field ta = CheckoutResponse.class.getDeclaredField("totalAmount");
+            if (ta.get(response) == null) {
+                BigDecimal total = BigDecimal.ZERO;
+                for (CartItem item : items) {
+                    BigDecimal unitPrice = item.getPrice() == null ? BigDecimal.ZERO : item.getPrice();
+                    total = total.add(unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
+                }
+                ta.setAccessible(true);
+                ta.set(response, total);
+            }
+        } catch (Exception ignored) {
+        }
 
         return response;
     }
 
     private CartItemResponse mapToResponse(CartItem item) {
+        BigDecimal unitPrice = item.getPrice() == null ? BigDecimal.ZERO : item.getPrice();
+        BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
         return CartItemResponse.builder()
                 .userId(item.getUserId())
                 .productId(item.getProductId())
                 .quantity(item.getQuantity())
-                .price(item.getPrice())
+                .price(unitPrice)
+                .lineTotal(lineTotal)
                 .build();
     }
 
@@ -203,35 +300,29 @@ public class CartServiceImpl implements CartService {
         return List.of();
     }
 
+    public List<CartItemResponse> fallbackGetCartFallback(String userId, Throwable t) {
+        log.error("Cart service fallback: getCartByUser failed", t);
+        throw new RuntimeException("Cart service unavailable");
+    }
+
     public CartItemResponse fallbackAddItem(String userId, CartItemRequest request, Throwable t) {
-        return CartItemResponse.builder()
-                .userId(userId)
-                .productId(request.getProductId())
-                .quantity(0)
-                .price(0)
-                .build();
+        log.error("Cart service fallback: addItemToCart failed", t);
+        throw new RuntimeException("Cart service unavailable");
     }
 
     public CartItemResponse fallbackRemoveItem(String userId, String productId, int qty, Throwable t) {
-        return CartItemResponse.builder()
-                .userId(userId)
-                .productId(productId)
-                .quantity(0)
-                .price(0)
-                .build();
+        log.error("Cart service fallback: removeItemQuantity failed", t);
+        throw new RuntimeException("Cart service unavailable");
     }
 
     public void fallbackClearCart(String userId, Throwable t) {
-        log.error("Some error occurred during clearing of the cart. Please try again.");
+        log.error("Cart service fallback: clearCart failed", t);
+        throw new RuntimeException("Cart service unavailable");
     }
 
     public CheckoutResponse fallbackCheckout(CheckoutRequest request, Throwable t) {
-        return CheckoutResponse.builder()
-                .userId(request.getUserId())
-                .paymentStatus("FAILED")
-                .totalAmount(0)
-                .purchasedProductIds(List.of())
-                .build();
+        log.error("Cart service fallback: checkout failed", t);
+        throw new RuntimeException("Cart service unavailable");
     }
 
     public List<CartItem> getItemsByUserId(String userId) {

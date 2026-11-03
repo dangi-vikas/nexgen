@@ -1,5 +1,7 @@
 package com.nexgen.cart_service.service;
 
+import com.nexgen.cart_service.client.OrderServiceClientImpl;
+import com.nexgen.cart_service.client.ProductCatalogClient;
 import com.nexgen.cart_service.dto.*;
 import com.nexgen.cart_service.entity.CartItem;
 import com.nexgen.cart_service.exception.CartEmptyException;
@@ -15,9 +17,9 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.List;
 
-import static org.hibernate.validator.internal.util.Contracts.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,9 +31,11 @@ class CartServiceImplTest {
     @Mock
     private CartItemRepository cartRepository;
     @Mock
-    private CartEventProducerService cartEventProducer;
-    @Mock
     private MeterRegistry meterRegistry;
+    @Mock
+    private ProductCatalogClient productCatalogClient;
+    @Mock
+    private OrderServiceClientImpl orderServiceClient;
 
     @Mock
     private Counter getCartItemCounter;
@@ -65,7 +69,7 @@ class CartServiceImplTest {
                 .userId(userId)
                 .productId("prod1")
                 .quantity(2)
-                .price(200.0)
+                .price(BigDecimal.valueOf(200.0))
                 .build();
 
         when(cartRepository.findByUserId(userId)).thenReturn(List.of(item));
@@ -80,15 +84,16 @@ class CartServiceImplTest {
     @Test
     void testAddItemToCart_newItem_shouldSaveAndReturn() {
         String userId = "user123";
-        CartItemRequest request = new CartItemRequest("prod1", 2, 100.0);
+        CartItemRequest request = new CartItemRequest("prod1", 2);
 
         when(cartRepository.existsByUserIdAndProductId(userId, "prod1")).thenReturn(false);
+        when(productCatalogClient.getProduct("prod1")).thenReturn(new ProductCatalogClient.ProductSnapshot("prod1", "p", BigDecimal.valueOf(100.0)));
 
         CartItem saved = CartItem.builder()
                 .userId(userId)
                 .productId("prod1")
                 .quantity(2)
-                .price(200.0)
+                .price(BigDecimal.valueOf(100.0))
                 .build();
 
         when(cartRepository.save(any(CartItem.class))).thenReturn(saved);
@@ -97,7 +102,6 @@ class CartServiceImplTest {
 
         assertEquals("prod1", response.getProductId());
         verify(addToCartCounter).increment();
-        verify(cartEventProducer).sendAddToCartEvent(any(AddToCartEvent.class));
     }
 
     @Test
@@ -108,7 +112,7 @@ class CartServiceImplTest {
                 .userId(userId)
                 .productId(productId)
                 .quantity(2)
-                .price(200.0)
+                .price(BigDecimal.valueOf(100.0))
                 .build();
 
         when(cartRepository.findByUserIdAndProductId(userId, productId)).thenReturn(item);
@@ -118,14 +122,13 @@ class CartServiceImplTest {
         assertEquals(0, response.getQuantity());
         verify(removeFromCartCounter).increment();
         verify(cartRepository).delete(item);
-        verify(cartEventProducer).sendRemoveFromCartEvent(any(RemoveFromCartEvent.class));
     }
 
     @Test
     void testClearCart_shouldDeleteByUserId() {
         String userId = "user123";
-        CartItem item1 = CartItem.builder().userId(userId).productId("prod1").quantity(2).price(200.0).build();
-        CartItem item2 = CartItem.builder().userId(userId).productId("prod2").quantity(3).price(300.0).build();
+        CartItem item1 = CartItem.builder().userId(userId).productId("prod1").quantity(2).price(BigDecimal.valueOf(200.0)).build();
+        CartItem item2 = CartItem.builder().userId(userId).productId("prod2").quantity(3).price(BigDecimal.valueOf(300.0)).build();
 
         when(cartRepository.findByUserId(userId)).thenReturn(List.of(item1, item2));
 
@@ -133,32 +136,38 @@ class CartServiceImplTest {
 
         verify(clearCartCounter).increment();
         verify(cartRepository).deleteByUserId(userId);
-        verify(cartEventProducer).sendCartClearedEvent(any(CartClearedEvent.class));
     }
 
     @Test
     void testCheckout_shouldReturnCheckoutResponse() {
         String userId = "user123";
-        CheckoutRequest request = new CheckoutRequest(userId, "CREDIT CARD");
+        CheckoutRequest request = new CheckoutRequest(userId, "CREDIT CARD", "idem1");
 
-        CartItem item1 = CartItem.builder().userId(userId).productId("prod1").quantity(2).price(200.0).build();
-        CartItem item2 = CartItem.builder().userId(userId).productId("prod2").quantity(3).price(300.0).build();
+        CartItem item1 = CartItem.builder().userId(userId).productId("prod1").quantity(2).price(BigDecimal.valueOf(200.0)).build();
+        CartItem item2 = CartItem.builder().userId(userId).productId("prod2").quantity(3).price(BigDecimal.valueOf(300.0)).build();
 
         when(cartRepository.findByUserId(userId)).thenReturn(List.of(item1, item2));
+        CheckoutResponse cr = new CheckoutResponse();
+        cr.setUserId(userId);
+        cr.setOrderNumber("ORD1");
+        cr.setStatus("CREATED");
+        cr.setPaymentStatus("NOT_IMPLEMENTED");
+        cr.setTotalAmount(BigDecimal.valueOf(500.0));
+        cr.setPurchasedProductIds(List.of("prod1", "prod2"));
+        when(orderServiceClient.checkoutWithItems(any(CheckoutRequest.class), anyList(), any())).thenReturn(cr);
 
         CheckoutResponse response = cartService.checkout(request);
 
-        assertEquals(500.0, response.getTotalAmount());
-        assertEquals("SUCCESS", response.getPaymentStatus());
-        verify(cartRepository).deleteAll(List.of(item1, item2));
+        assertEquals(BigDecimal.valueOf(500.0), response.getTotalAmount());
+        assertEquals("NOT_IMPLEMENTED", response.getPaymentStatus());
+        verify(cartRepository).deleteByUserId(userId);
         verify(checkoutCounter).increment();
-        verify(cartEventProducer).sendCheckoutEvent(any(CheckoutEvent.class));
     }
 
     @Test
     void testAddItemToCart_withNegativeQuantity_shouldThrowException() {
         String userId = "user123";
-        CartItemRequest request = new CartItemRequest("prod1", -2, 100.0);
+        CartItemRequest request = new CartItemRequest("prod1", -2);
 
         InvalidQuantityException exception = assertThrows(
                 InvalidQuantityException.class,
@@ -186,7 +195,7 @@ class CartServiceImplTest {
     @Test
     void testCheckout_emptyCart_shouldThrowException() {
         String userId = "user123";
-        CheckoutRequest request = new CheckoutRequest(userId, "CREDIT CARD");
+        CheckoutRequest request = new CheckoutRequest(userId, "CREDIT CARD", "idem1");
 
         when(cartRepository.findByUserId(userId)).thenReturn(List.of());
 
@@ -196,27 +205,6 @@ class CartServiceImplTest {
         );
 
         assertEquals("Cannot checkout an empty cart", exception.getMessage());
-    }
-
-    @Test
-    void testAddItemToCart_kafkaFails_shouldStillReturnResponse() {
-        String userId = "user123";
-        CartItemRequest request = new CartItemRequest("prod1", 2, 100.0);
-
-        when(cartRepository.existsByUserIdAndProductId(userId, "prod1")).thenReturn(false);
-
-        CartItem savedItem = CartItem.builder()
-                .userId(userId).productId("prod1").quantity(2).price(200.0).build();
-        when(cartRepository.save(any())).thenReturn(savedItem);
-
-        // Simulate Kafka failure
-
-        doThrow(new RuntimeException("Kafka down"))
-                .when(cartEventProducer).sendAddToCartEvent(any());
-
-        CartItemResponse response = cartService.addItemToCart("user123", request);
-        assertNotNull(response);
-        assertEquals("prod1", response.getProductId());
     }
 
 }

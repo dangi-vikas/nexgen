@@ -7,6 +7,8 @@ import com.nexgen.order_service.entity.OrderStatus;
 import com.nexgen.order_service.exception.OrderNotFoundException;
 import com.nexgen.order_service.repository.OrderRepository;
 import com.nexgen.order_service.repository.OrderStatusHistoryRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.*;
@@ -32,23 +34,38 @@ class OrderServiceImplTest {
     @Mock
     private OrderKafkaProducerService kafkaProducerService;
 
+    @Mock
+    private MeterRegistry meterRegistry;
+
+    @Mock
+    private Counter counter;
+
+    @Mock
+    private com.nexgen.order_service.client.ProductCatalogClient productCatalogClient;
+
+    @Mock
+    private com.nexgen.order_service.client.InventoryClient inventoryClient;
+
     @BeforeEach
     void setup() {
         MockitoAnnotations.openMocks(this);
+        when(meterRegistry.counter(anyString(), any(String[].class))).thenReturn(counter);
     }
 
     @Test
     void testCreateOrder() {
         OrderRequest request = new OrderRequest();
-        request.setUserId("user123");
         request.setOrderItems(List.of(
-                new OrderItemRequest("SKU1", 2, 100.0)
+                new OrderItemRequest("SKU1", 2)
         ));
+        request.setIdempotencyKey("key1");
+        when(productCatalogClient.getProduct("SKU1")).thenReturn(new com.nexgen.order_service.client.ProductCatalogClient.ProductSnapshot("SKU1", "Prod", java.math.BigDecimal.valueOf(100.0)));
+        doNothing().when(inventoryClient).reserve(anyString(), anyList(), any());
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        OrderResponse response = orderService.createOrder(request);
+        OrderResponse response = orderService.createOrder(request, "user123");
 
         assertNotNull(response);
         assertEquals("user123", response.getUserId());
@@ -65,11 +82,11 @@ class OrderServiceImplTest {
         order.setUserId("user123");
         order.setStatus(OrderStatus.CREATED);
         order.setCreatedAt(Instant.now());
-        order.setOrderItems(List.of(new OrderItem(1L,"SKU1", 2, 50.0, order)));
+        order.setOrderItems(List.of(OrderItem.builder().id(1L).skuCode("SKU1").quantity(2).price(java.math.BigDecimal.valueOf(50.0)).lineTotal(java.math.BigDecimal.valueOf(100.0)).order(order).build()));
 
         when(orderRepository.findByOrderNumber("ORDER123")).thenReturn(Optional.of(order));
 
-        OrderResponse response = orderService.getOrderById("ORDER123");
+        OrderResponse response = orderService.getOrderById("ORDER123", "user123", false);
 
         assertEquals("ORDER123", response.getOrderNumber());
         assertEquals("user123", response.getUserId());
@@ -77,10 +94,41 @@ class OrderServiceImplTest {
     }
 
     @Test
+    void testGetOrderById_whenDifferentUser() {
+        Order order = new Order();
+        order.setOrderNumber("ORDER123");
+        order.setUserId("owner");
+        order.setStatus(OrderStatus.CREATED);
+        order.setCreatedAt(Instant.now());
+        order.setOrderItems(List.of(OrderItem.builder().id(1L).skuCode("SKU1").quantity(2).price(java.math.BigDecimal.valueOf(50.0)).lineTotal(java.math.BigDecimal.valueOf(100.0)).order(order).build()));
+
+        when(orderRepository.findByOrderNumber("ORDER123")).thenReturn(Optional.of(order));
+
+        assertThrows(OrderNotFoundException.class,
+                () -> orderService.getOrderById("ORDER123", "attacker", false));
+    }
+
+    @Test
+    void testGetOrderById_whenPrivilegedUser() {
+        Order order = new Order();
+        order.setOrderNumber("ORDER123");
+        order.setUserId("owner");
+        order.setStatus(OrderStatus.CREATED);
+        order.setCreatedAt(Instant.now());
+        order.setOrderItems(List.of(OrderItem.builder().id(1L).skuCode("SKU1").quantity(2).price(java.math.BigDecimal.valueOf(50.0)).lineTotal(java.math.BigDecimal.valueOf(100.0)).order(order).build()));
+
+        when(orderRepository.findByOrderNumber("ORDER123")).thenReturn(Optional.of(order));
+
+        OrderResponse response = orderService.getOrderById("ORDER123", "admin", true);
+
+        assertEquals("owner", response.getUserId());
+    }
+
+    @Test
     void testGetOrderById_whenNotFound() {
         when(orderRepository.findByOrderNumber("ORDER123")).thenReturn(Optional.empty());
 
-        assertThrows(OrderNotFoundException.class, () -> orderService.getOrderById("ORDER123"));
+        assertThrows(OrderNotFoundException.class, () -> orderService.getOrderById("ORDER123", "user123", false));
     }
 
     @Test
@@ -93,7 +141,7 @@ class OrderServiceImplTest {
         order.setUserId(userId);
         order.setStatus(OrderStatus.CREATED);
         order.setCreatedAt(Instant.now());
-        order.setOrderItems(List.of(new OrderItem(1L,"SKU1", 2, 50.0, order)));
+        order.setOrderItems(List.of(OrderItem.builder().id(1L).skuCode("SKU1").quantity(2).price(java.math.BigDecimal.valueOf(50.0)).lineTotal(java.math.BigDecimal.valueOf(100.0)).order(order).build()));
 
         Page<Order> page = new PageImpl<>(List.of(order), pageable, 1);
 
@@ -114,7 +162,7 @@ class OrderServiceImplTest {
 
         when(orderRepository.findByOrderNumber("ORDER123")).thenReturn(Optional.of(order));
 
-        orderService.cancelOrder("ORDER123");
+        orderService.cancelOrder("ORDER123", "user123", false);
 
         assertEquals(OrderStatus.CANCELLED, order.getStatus());
         verify(kafkaProducerService).sendOrderCancelledEvent(any(OrderEvent.class));
@@ -125,7 +173,7 @@ class OrderServiceImplTest {
     void testCancelOrder_whenNotFound() {
         when(orderRepository.findByOrderNumber("ORDER123")).thenReturn(Optional.empty());
 
-        assertThrows(OrderNotFoundException.class, () -> orderService.cancelOrder("ORDER123"));
+        assertThrows(OrderNotFoundException.class, () -> orderService.cancelOrder("ORDER123", "user123", false));
     }
 
     @Test
@@ -135,7 +183,7 @@ class OrderServiceImplTest {
         Pageable pageable = PageRequest.of(page, size);
 
         Order order = Order.builder().orderNumber("ORD1").userId(userId).status(OrderStatus.PENDING).build();
-        order.setOrderItems(List.of(new OrderItem(1L,"SKU1", 2, 50.0, order)));
+        order.setOrderItems(List.of(OrderItem.builder().id(1L).skuCode("SKU1").quantity(2).price(java.math.BigDecimal.valueOf(50.0)).lineTotal(java.math.BigDecimal.valueOf(100.0)).order(order).build()));
         Page<Order> orderPage = new PageImpl<>(List.of(order), pageable, 1);
 
         when(orderRepository.findByUserId(eq(userId), eq(pageable))).thenReturn(orderPage);
@@ -154,7 +202,7 @@ class OrderServiceImplTest {
         Pageable pageable = PageRequest.of(page, size);
 
         Order order = Order.builder().orderNumber("ORD2").userId(userId).status(status).build();
-        order.setOrderItems(List.of(new OrderItem(1L,"SKU1", 2, 50.0, order)));
+        order.setOrderItems(List.of(OrderItem.builder().id(1L).skuCode("SKU1").quantity(2).price(java.math.BigDecimal.valueOf(50.0)).lineTotal(java.math.BigDecimal.valueOf(100.0)).order(order).build()));
         Page<Order> orderPage = new PageImpl<>(List.of(order), pageable, 1);
 
         when(orderRepository.findByUserIdAndStatus(eq(userId), eq(status), eq(pageable))).thenReturn(orderPage);

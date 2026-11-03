@@ -10,14 +10,19 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
-@Slf4j
 @Service
-@RequiredArgsConstructor
 public class CartEventProducerService {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CartEventProducerService.class);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final KafkaFallbackService fallbackService;
     private static final String FALLBACK_ERROR = "Kafka send failed. Falling back to Redis: {}";
+
+    public CartEventProducerService(KafkaTemplate<String, Object> kafkaTemplate, KafkaFallbackService fallbackService) {
+        this.kafkaTemplate = kafkaTemplate;
+        this.fallbackService = fallbackService;
+    }
 
     @Value("${topic.cart-cleared}")
     private String cartClearedTopic;

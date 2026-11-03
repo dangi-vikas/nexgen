@@ -7,6 +7,7 @@ import com.nexgen.product_service.dto.RedisPageWrapper;
 import com.nexgen.product_service.entity.Product;
 import com.nexgen.product_service.exception.DuplicateProductException;
 import com.nexgen.product_service.exception.ProductNotFoundException;
+import com.nexgen.product_service.metrics.ProductMetrics;
 import com.nexgen.product_service.repository.ProductRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,9 @@ class ProductServiceTest {
     @Mock
     private RedisCacheUtil redisCacheUtil;
 
+    @Mock
+    private ProductMetrics productMetrics;
+
     @InjectMocks
     private ProductServiceImpl productService;
 
@@ -43,7 +47,7 @@ class ProductServiceTest {
                 .skuCode("P1001")
                 .name("TestProduct")
                 .description("Description")
-                .price(100.00)
+                .price(java.math.BigDecimal.valueOf(100.00))
                 .quantity(10)
                 .build();
     }
@@ -58,6 +62,7 @@ class ProductServiceTest {
         assertNotNull(saved);
         assertEquals("P1001", saved.getSkuCode());
         verify(producer).sendProductCreatedEvent(any(ProductEvent.class));
+        verify(productMetrics).incrementProductCreated();
     }
 
     @Test
@@ -76,6 +81,7 @@ class ProductServiceTest {
 
         assertNotNull(updated);
         verify(producer).sendProductStockUpdatedEvent(any(ProductEvent.class));
+        verify(productMetrics).incrementStockUpdated();
     }
 
     @Test

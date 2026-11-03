@@ -6,8 +6,8 @@ import com.nexgen.cart_service.dto.CartClearedEvent;
 import com.nexgen.cart_service.dto.CheckoutEvent;
 import com.nexgen.cart_service.dto.RemoveFromCartEvent;
 import com.nexgen.cart_service.service.KafkaFallbackService;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -16,13 +16,19 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
-@Slf4j
-@RequiredArgsConstructor
 public class KafkaRetryScheduler {
+
+    private static final Logger log = LoggerFactory.getLogger(KafkaRetryScheduler.class);
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final KafkaFallbackService fallbackService;
     private final ObjectMapper objectMapper;
+
+    public KafkaRetryScheduler(KafkaTemplate<String, Object> kafkaTemplate, KafkaFallbackService fallbackService, ObjectMapper objectMapper) {
+        this.kafkaTemplate = kafkaTemplate;
+        this.fallbackService = fallbackService;
+        this.objectMapper = objectMapper;
+    }
 
     @Value("${topic.cart-cleared}")
     private String cartClearedTopic;
@@ -64,7 +70,11 @@ public class KafkaRetryScheduler {
                     }
                     case "CheckoutEvent" -> {
                         CheckoutEvent event = objectMapper.readValue(json, CheckoutEvent.class);
-                        kafkaTemplate.send(cartCheckoutTopic, event.getUserId(), event);
+                        String uid = event.getUserId();
+                        if (uid == null) {
+                            uid = "";
+                        }
+                        kafkaTemplate.send(cartCheckoutTopic, uid, event);
                     }
                     default -> log.warn("Unknown event type: {}", type);
                 }

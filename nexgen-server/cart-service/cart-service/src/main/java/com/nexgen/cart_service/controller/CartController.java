@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,7 +27,9 @@ public class CartController {
 
     @Operation(summary = "Get current items in the cart")
     @GetMapping("/{userId}")
-    public ResponseEntity<ApiResponse<List<CartItemResponse>>> getCartByUser(@PathVariable String userId) {
+    public ResponseEntity<ApiResponse<List<CartItemResponse>>> getCartByUser(
+            @PathVariable String userId, Authentication authentication) {
+        requireOwner(userId, authentication);
         List<CartItemResponse> items = cartService.getCartByUser(userId);
         return ResponseEntity.ok(ApiResponse.success(items, "Cart items retrieved successfully"));
     }
@@ -34,12 +38,18 @@ public class CartController {
     @PostMapping("/{userId}/add")
     public ResponseEntity<ApiResponse<CartItemResponse>> addItemToCart(
             @PathVariable String userId,
-            @Valid @RequestBody CartItemRequest itemRequest
+            @Valid @RequestBody CartItemRequest itemRequest,
+            Authentication authentication
     ) {
+        requireOwner(userId, authentication);
         CartItemResponse item = cartService.addItemToCart(userId, itemRequest);
 
+        double priceD = 0.0;
+        if (item.getPrice() != null) {
+            priceD = item.getPrice().doubleValue();
+        }
         cartEventProducer.sendAddToCartEvent(
-                new AddToCartEvent(userId, item.getProductId(), item.getQuantity(), item.getPrice())
+                new AddToCartEvent(userId, item.getProductId(), item.getQuantity(), priceD)
         );
 
         return ResponseEntity.ok(ApiResponse.success(item, "Item added to cart"));
@@ -50,7 +60,10 @@ public class CartController {
     public ResponseEntity<ApiResponse<CartItemResponse>> removeItemQuantity(
             @PathVariable String userId,
             @PathVariable String productId,
-            @PathVariable int quantity) {
+            @PathVariable int quantity,
+            Authentication authentication) {
+
+        requireOwner(userId, authentication);
 
         if (quantity <= 0) {
             throw new InvalidQuantityException("Quantity to remove must be greater than 0.");
@@ -67,13 +80,15 @@ public class CartController {
 
     @Operation(summary = "Clear the cart")
     @DeleteMapping("/{userId}/clear")
-    public ResponseEntity<ApiResponse<Void>> clearCart(@PathVariable String userId) {
+    public ResponseEntity<ApiResponse<Void>> clearCart(
+            @PathVariable String userId, Authentication authentication) {
+        requireOwner(userId, authentication);
         cartService.clearCart(userId);
 
-        List<CartItem> items = cartService.getItemsByUserId(userId);
-        int totalQuantity = items.stream().mapToInt(CartItem::getQuantity).sum();
+        List<CartItem> itemsCleared = cartService.getItemsByUserId(userId);
+        int totalQuantityCleared = itemsCleared == null ? 0 : itemsCleared.stream().mapToInt(CartItem::getQuantity).sum();
 
-        CartClearedEvent event = new CartClearedEvent(userId, totalQuantity, "Cart cleared successfully.");
+        CartClearedEvent event = new CartClearedEvent(userId, totalQuantityCleared, "Cart cleared successfully.");
         cartEventProducer.sendCartClearedEvent(event);
 
         return ResponseEntity.ok(ApiResponse.success(null, "Cart cleared successfully"));
@@ -82,19 +97,28 @@ public class CartController {
 
     @Operation(summary = "Pay and Checkout")
     @PostMapping("/checkout")
-    public ResponseEntity<ApiResponse<CheckoutResponse>> checkout(@Valid @RequestBody CheckoutRequest request) {
-        CheckoutResponse response = cartService.checkout(request);
+    public ResponseEntity<ApiResponse<CheckoutResponse>> checkout(
+            @Valid @RequestBody CheckoutRequest request, Authentication authentication,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        requireOwner(request.getUserId(), authentication);
+        CheckoutResponse response = cartService.checkout(request, authorizationHeader);
         List<CartItem> items = cartService.getItemsByUserId(request.getUserId());
 
         cartEventProducer.sendCheckoutEvent(
                 new CheckoutEvent(
                         request.getUserId(),
-                        items.stream().map(CartItem::getProductId).toList(),
-                        response.getTotalAmount(),
+                        items.stream().map(CartItem::getProductId).collect(java.util.stream.Collectors.toList()),
+                        response.getTotalAmount() == null ? 0.0 : response.getTotalAmount().doubleValue(),
                         "Checkout completed"
                 )
         );
 
-        return ResponseEntity.ok(ApiResponse.success(response, "Checkout successful"));
+        return ResponseEntity.ok(ApiResponse.success(response, "Checkout processed"));
+    }
+
+    private void requireOwner(String userId, Authentication authentication) {
+        if (authentication == null || !userId.equals(authentication.getName())) {
+            throw new AccessDeniedException("You may only access your own cart");
+        }
     }
 }

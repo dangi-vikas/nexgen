@@ -1,146 +1,135 @@
 package com.nexgen.user_service.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nexgen.user_service.dto.*;
-import com.nexgen.user_service.entity.User;
-import com.nexgen.user_service.repository.UserRepository;
+import com.nexgen.user_service.dto.UpdateProfileRequest;
+import com.nexgen.user_service.dto.UserProfileResponse;
+import com.nexgen.user_service.dto.UserRegistrationRequest;
+import com.nexgen.user_service.exception.GlobalExceptionHandler;
 import com.nexgen.user_service.service.UserService;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Date;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+@ExtendWith(MockitoExtension.class)
 class UserControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoBean
+    @Mock
     private UserService userService;
 
-    @MockitoBean
-    private AuthenticationManager authenticationManager;
+    @InjectMocks
+    private UserController userController;
 
-    @MockitoBean
-    private UserDetailsService userDetailsService;
+    private MockMvc mockMvc;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @Value("${jwt.secret}")
-    private String secretKey;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @BeforeEach
-    void setup() {
-        UserDetails userDetails =  User.builder()
-                .username("john")
-                .email("john@example.com")
-                .password(passwordEncoder.encode("oldpass"))
-                .role("ROLE_USER")
-                .build();
-
-        when(userDetailsService.loadUserByUsername("john")).thenReturn(userDetails);
+    private Authentication authentication() {
+        return new UsernamePasswordAuthenticationToken(
+                "john", null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
     }
 
-    public String generateTestToken(String username) {
-        return Jwts.builder()
-                .setSubject(username)
-                .claim("roles", List.of("ROLE_USER"))
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis()+ 60 * 60 * 1000))
-                .signWith(SignatureAlgorithm.HS256, secretKey.getBytes(StandardCharsets.UTF_8))
-                .compact();
+    @BeforeEach
+    void setUp() {
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+        mockMvc = MockMvcBuilders.standaloneSetup(userController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setValidator(validator)
+                .build();
     }
 
     @Test
-    void testRegister() throws Exception {
-        UserRegistrationRequest request = new UserRegistrationRequest("john", "pass", "john@example.com", "ROLE_USER");
-
-        User user = User.builder()
-                .username("john")
-                .email("john@example.com")
-                .role("ROLE_USER")
-                .build();
-
-        when(userService.registerUser(any(UserRegistrationRequest.class))).thenReturn(user);
+    void registrationReturnsProfileWithoutPasswordAndIgnoresClientRole() throws Exception {
+        when(userService.registerUser(any(UserRegistrationRequest.class)))
+                .thenReturn(new UserProfileResponse(1L, "john", "john@example.com", "ROLE_USER"));
 
         mockMvc.perform(post("/api/v1/users/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.username").value("john"));
-    }
-
-    @Test
-    void testUpdateProfile() throws Exception {
-        UpdateProfileRequest updateRequest = new UpdateProfileRequest("john_new@example.com");
-
-        mockMvc.perform(put("/api/v1/users/update")
-                        .header("Authorization", "Bearer " + generateTestToken("john"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(updateRequest)))
-                .andExpect(status().isOk())
-                .andExpect(content().string("Profile updated successfully"));
-    }
-
-    @Test
-    void testChangePassword() throws Exception {
-        ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest("oldpass", "newpass");
-
-        mockMvc.perform(put("/api/v1/users/change-password")
-                        .header("Authorization", "Bearer " + generateTestToken("john"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(changePasswordRequest)))
-                .andExpect(status().isOk())
-                .andExpect(content().string("Password changed successfully"));;
-    }
-
-    @Test
-    void testGetUserByUsername() throws Exception {
-        User user = User.builder()
-            .username("john")
-            .email("john@example.com")
-            .password(passwordEncoder.encode("pass"))
-            .role("ROLE_USER")
-            .build();
-
-        userRepository.save(user);
-
-        when(userService.getUserByUsername("john")).thenReturn(user);
-
-        mockMvc.perform(get("/api/v1/users/me")
-                        .header("Authorization", "Bearer " + generateTestToken("john")))
+                        .content("{\"username\":\"john\",\"password\":\"StrongPass!123\","
+                                + "\"email\":\"john@example.com\",\"role\":\"ROLE_ADMIN\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.username").value("john"))
-                .andExpect(jsonPath("$.email").value("john@example.com"));
+                .andExpect(jsonPath("$.role").value("ROLE_USER"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+
+        ArgumentCaptor<UserRegistrationRequest> captor =
+                ArgumentCaptor.forClass(UserRegistrationRequest.class);
+        verify(userService).registerUser(captor.capture());
+        assertEquals("john", captor.getValue().getUsername());
+        assertEquals("StrongPass!123", captor.getValue().getPassword());
+    }
+
+    @Test
+    void registrationRejectsShortPassword() throws Exception {
+        mockMvc.perform(post("/api/v1/users/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"john\",\"password\":\"short\","
+                                + "\"email\":\"john@example.com\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors.password").exists());
+    }
+
+    @Test
+    void registrationRejectsInvalidEmail() throws Exception {
+        mockMvc.perform(post("/api/v1/users/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"john\",\"password\":\"StrongPass!123\","
+                                + "\"email\":\"not-an-email\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.email").exists());
+    }
+
+    @Test
+    void currentProfileUsesAuthenticatedPrincipal() throws Exception {
+        when(userService.getUserProfile("john"))
+                .thenReturn(new UserProfileResponse(1L, "john", "john@example.com", "ROLE_USER"));
+
+        mockMvc.perform(get("/api/v1/users/me").principal(authentication()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("john"))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void updateProfileUsesAuthenticatedPrincipal() throws Exception {
+        mockMvc.perform(put("/api/v1/users/update")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new UpdateProfileRequest("new@example.com"))))
+                .andExpect(status().isOk());
+
+        verify(userService).updateUserProfile("john", new UpdateProfileRequest("new@example.com"));
+    }
+
+    @Test
+    void changePasswordRejectsShortNewPassword() throws Exception {
+        mockMvc.perform(put("/api/v1/users/change-password")
+                        .principal(authentication())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"oldPassword\":\"old\",\"newPassword\":\"short\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.newPassword").exists());
     }
 }

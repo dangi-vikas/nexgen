@@ -25,8 +25,23 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @CachePut(value = "inventory", key = "#item.skuCode")
     public InventoryItem createItem(InventoryItem item) {
+        if (item == null) {
+            throw new IllegalArgumentException("Item is required");
+        }
+        if (item.getQuantity() != null && item.getQuantity() < 0) {
+            throw new IllegalArgumentException("Quantity must be non-negative");
+        }
+        if (item.getReservedQuantity() != null && item.getReservedQuantity() < 0) {
+            throw new IllegalArgumentException("Reserved quantity must be non-negative");
+        }
         if (repository.findBySkuCode(item.getSkuCode()).isPresent()) {
             throw new DuplicateItemException("Item with SKU already exists: " + item.getSkuCode());
+        }
+        if (item.getReservedQuantity() == null) {
+            item.setReservedQuantity(0);
+        }
+        if (item.getVersion() == null) {
+            item.setVersion(0L);
         }
 
         InventoryItem createdItem = repository.save(item);
@@ -47,11 +62,34 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @CachePut(value = "inventory", key = "#skuCode")
     public InventoryItem updateItem(String skuCode, InventoryItem updatedItem) {
+        if (updatedItem == null) {
+            throw new IllegalArgumentException("Updated item is required");
+        }
+        if (updatedItem.getQuantity() != null && updatedItem.getQuantity() < 0) {
+            throw new IllegalArgumentException("Quantity must be non-negative");
+        }
+        if (updatedItem.getReservedQuantity() != null && updatedItem.getReservedQuantity() < 0) {
+            throw new IllegalArgumentException("Reserved quantity must be non-negative");
+        }
         InventoryItem item = repository.findBySkuCode(skuCode)
                 .orElseThrow(() -> new ItemNotFoundException("Item not found with SKU: " + skuCode));
 
-        item.setName(updatedItem.getName());
-        item.setQuantity(updatedItem.getQuantity());
+        if (updatedItem.getName() != null) {
+            item.setName(updatedItem.getName());
+        }
+        if (updatedItem.getQuantity() != null) {
+            Integer reserved = item.getReservedQuantity() == null ? 0 : item.getReservedQuantity();
+            if (updatedItem.getQuantity() < reserved) {
+                throw new IllegalArgumentException("Quantity cannot be less than reserved quantity");
+            }
+            item.setQuantity(updatedItem.getQuantity());
+        }
+        if (updatedItem.getReservedQuantity() != null) {
+            item.setReservedQuantity(updatedItem.getReservedQuantity());
+        }
+        if (item.getReservedQuantity() != null && item.getQuantity() != null && item.getReservedQuantity() > item.getQuantity()) {
+            throw new IllegalArgumentException("Reserved quantity cannot exceed quantity");
+        }
         InventoryItem savedItem = repository.save(item);
 
         // Send "UPDATED" event

@@ -4,142 +4,208 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexgen.user_service.dto.AuthRequest;
 import com.nexgen.user_service.dto.RefreshTokenRequest;
 import com.nexgen.user_service.entity.User;
-import com.nexgen.user_service.exception.InvalidCredentialsException;
-import com.nexgen.user_service.service.KafkaProducerService;
+import com.nexgen.user_service.exception.GlobalExceptionHandler;
 import com.nexgen.user_service.service.JwtService;
+import com.nexgen.user_service.service.KafkaProducerService;
 import com.nexgen.user_service.service.LogoutService;
 import com.nexgen.user_service.service.RedisService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 
 import java.util.Date;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-public class AuthControllerTest {
+@ExtendWith(MockitoExtension.class)
+class AuthControllerTest {
 
-    @Autowired
-    private MockMvc mockMvc;
-
-    @MockitoBean
+    @Mock
     private AuthenticationManager authenticationManager;
 
-    @MockitoBean
+    @Mock
     private JwtService jwtService;
 
-    @MockitoBean
+    @Mock
     private UserDetailsService userDetailsService;
 
-    @MockitoBean
+    @Mock
     private LogoutService logoutService;
 
-    @MockitoBean
+    @Mock
     private KafkaProducerService kafkaProducerService;
 
-    @MockitoBean
+    @Mock
     private RedisService redisService;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @InjectMocks
+    private AuthController authController;
 
-    @Test
-    void testLoginSuccess() throws Exception {
-        AuthRequest request = new AuthRequest("john", "pass");
+    private MockMvc mockMvc;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-        User mockUser = User.builder()
+    private User user() {
+        return User.builder()
                 .username("john")
                 .email("john@example.com")
+                .password("encoded")
                 .role("ROLE_USER")
-                .password("encodedPass")
                 .build();
+    }
 
-        when(userDetailsService.loadUserByUsername("john")).thenReturn(mockUser);
-        when(jwtService.generateToken(mockUser)).thenReturn("mock-access-token");
-        when(jwtService.generateRefreshToken(mockUser)).thenReturn("mock-refresh-token");
+    @BeforeEach
+    void setUp() {
+        LocalValidatorFactoryBean validator = new LocalValidatorFactoryBean();
+        validator.afterPropertiesSet();
+        mockMvc = MockMvcBuilders.standaloneSetup(authController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .setValidator(validator)
+                .build();
+    }
+
+    @Test
+    void loginReturnsBothTokens() throws Exception {
+        User user = user();
+        when(userDetailsService.loadUserByUsername("john")).thenReturn(user);
+        when(jwtService.generateToken(user)).thenReturn("access-token");
+        when(jwtService.generateRefreshToken(user)).thenReturn("refresh-token");
 
         mockMvc.perform(post("/api/v1/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(new AuthRequest("john", "StrongPass!123"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").value("mock-access-token"))
-                .andExpect(jsonPath("$.refreshToken").value("mock-refresh-token"))
+                .andExpect(jsonPath("$.accessToken").value("access-token"))
+                .andExpect(jsonPath("$.refreshToken").value("refresh-token"))
                 .andExpect(jsonPath("$.username").value("john"))
                 .andExpect(jsonPath("$.email").value("john@example.com"))
                 .andExpect(jsonPath("$.role").value("ROLE_USER"));
+
+        verify(redisService).saveRefreshToken("john", "refresh-token");
     }
 
     @Test
-    void testLoginFailure() throws Exception {
-        AuthRequest request = new AuthRequest("john", "wrongpass");
-
-        doThrow(new InvalidCredentialsException("Invalid username or password")).when(authenticationManager)
-                .authenticate(any(UsernamePasswordAuthenticationToken.class));
+    void loginRejectsBadCredentials() throws Exception {
+        when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class)))
+                .thenThrow(new BadCredentialsException("bad"));
 
         mockMvc.perform(post("/api/v1/users/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(new AuthRequest("john", "wrong"))))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.message").value("Invalid username or password"))
-                .andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"))
-                .andExpect(jsonPath("$.status").value(401));
+                .andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"));
     }
 
     @Test
-    void testLogoutSuccess() throws Exception {
-        String token = "mock-token";
-        Date expiry = new Date(System.currentTimeMillis() + 60000);
-
-        when(jwtService.extractExpiration(token)).thenReturn(expiry);
-
-        mockMvc.perform(post("/api/v1/users/logout")
-                        .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
-                .andExpect(content().string("Logged out successfully"));
-
-        verify(logoutService).blacklistToken(eq(token), anyLong());
-    }
-
-    @Test
-    void testRefreshTokenSuccess() throws Exception {
-        String oldRefreshToken = "old-refresh-token";
-        String newAccessToken = "new-access-token";
-        String newRefreshToken = "new-refresh-token";
-
-        User user = User.builder()
-                .username("john")
-                .email("john@example.com")
-                .role("ROLE_USER")
-                .build();
-
-        when(jwtService.extractUsername(oldRefreshToken)).thenReturn("john");
-        when(redisService.getRefreshToken("john")).thenReturn(oldRefreshToken);
+    void refreshRotatesOneTimeToken() throws Exception {
+        User user = user();
+        when(jwtService.isRefreshToken("old-refresh")).thenReturn(true);
+        when(jwtService.extractUsername("old-refresh")).thenReturn("john");
         when(userDetailsService.loadUserByUsername("john")).thenReturn(user);
-        when(jwtService.generateToken(user)).thenReturn(newAccessToken);
-        when(jwtService.generateRefreshToken(user)).thenReturn(newRefreshToken);
-
-        RefreshTokenRequest request = new RefreshTokenRequest(oldRefreshToken);
+        when(jwtService.generateToken(user)).thenReturn("new-access");
+        when(jwtService.generateRefreshToken(user)).thenReturn("new-refresh");
+        when(redisService.rotateRefreshToken("john", "old-refresh", "new-refresh"))
+                .thenReturn(RedisService.RotationResult.SUCCESS);
 
         mockMvc.perform(post("/api/v1/users/refresh-token")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                        .content(objectMapper.writeValueAsString(new RefreshTokenRequest("old-refresh"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").value(newAccessToken))
-                .andExpect(jsonPath("$.refreshToken").value(newRefreshToken))
-                .andExpect(jsonPath("$.username").value("john"))
-                .andExpect(jsonPath("$.email").value("john@example.com"))
-                .andExpect(jsonPath("$.role").value("ROLE_USER"));
+                .andExpect(jsonPath("$.accessToken").value("new-access"))
+                .andExpect(jsonPath("$.refreshToken").value("new-refresh"));
+    }
+
+    @Test
+    void accessTokenCannotBeUsedToRefresh() throws Exception {
+        when(jwtService.isRefreshToken("access-token")).thenReturn(false);
+
+        mockMvc.perform(post("/api/v1/users/refresh-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RefreshTokenRequest("access-token"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_TOKEN"));
+    }
+
+    @Test
+    void replayingRefreshTokenFailsAndRevokesSession() throws Exception {
+        when(jwtService.isRefreshToken("stolen")).thenReturn(true);
+        when(jwtService.extractUsername("stolen")).thenReturn("john");
+        when(userDetailsService.loadUserByUsername("john")).thenReturn(user());
+        when(jwtService.generateToken(any())).thenReturn("new-access");
+        when(jwtService.generateRefreshToken(any())).thenReturn("new-refresh");
+        when(redisService.rotateRefreshToken("john", "stolen", "new-refresh"))
+                .thenReturn(RedisService.RotationResult.REUSE_DETECTED);
+
+        mockMvc.perform(post("/api/v1/users/refresh-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RefreshTokenRequest("stolen"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_TOKEN"));
+
+        // The Lua script revokes the session on reuse; the controller must not
+        // issue a second delete that could race with a legitimate refresh.
+        verify(redisService, never()).deleteRefreshToken(anyString());
+    }
+
+    @Test
+    void unknownRefreshTokenDoesNotDeleteAValidSession() throws Exception {
+        when(jwtService.isRefreshToken("random")).thenReturn(true);
+        when(jwtService.extractUsername("random")).thenReturn("john");
+        when(userDetailsService.loadUserByUsername("john")).thenReturn(user());
+        when(jwtService.generateToken(any())).thenReturn("new-access");
+        when(jwtService.generateRefreshToken(any())).thenReturn("new-refresh");
+        when(redisService.rotateRefreshToken("john", "random", "new-refresh"))
+                .thenReturn(RedisService.RotationResult.INVALID);
+
+        mockMvc.perform(post("/api/v1/users/refresh-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new RefreshTokenRequest("random"))))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value("INVALID_TOKEN"));
+
+        verify(redisService, never()).deleteRefreshToken(anyString());
+    }
+
+    @Test
+    void refreshRequiresNonBlankToken() throws Exception {
+        mockMvc.perform(post("/api/v1/users/refresh-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.errors.refreshToken").exists());
+    }
+
+    @Test
+    void logoutRevokesAccessAndRefreshState() throws Exception {
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                "john", null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
+        when(jwtService.extractExpiration("access-token"))
+                .thenReturn(new Date(System.currentTimeMillis() + 60_000));
+
+        mockMvc.perform(post("/api/v1/users/logout")
+                        .principal(authentication)
+                        .header("Authorization", "Bearer access-token"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("Logged out successfully"));
+
+        verify(logoutService).blacklistToken(eq("access-token"), anyLong());
+        verify(redisService).deleteRefreshToken("john");
     }
 }
