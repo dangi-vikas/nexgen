@@ -1,44 +1,69 @@
 package com.nexgen.user_service.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexgen.user_service.dto.UserAccountEvent;
 import com.nexgen.user_service.dto.UserLoginEvent;
 import lombok.RequiredArgsConstructor;
-import org.springframework.kafka.core.KafkaTemplate;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Enqueues account events into the transactional outbox.
+ *
+ * <p>The previous implementation published string concatenations such as
+ * {@code "New user registered: john"} with a hard-coded {@code localhost:9092}
+ * producer and no key, so no consumer could react to them. These are now typed
+ * JSON events keyed by username, consumed by the notification service.
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class KafkaProducerService {
 
-    private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
+    static final String USER_REGISTRATION = "user-registration";
+    static final String USER_LOGIN = "user-login";
+    static final String USER_PROFILE_UPDATED = "user-profile-updated";
+    static final String USER_PASSWORD_CHANGED = "user-password-changed";
 
-    private static final String REGISTRATION_TOPIC = "user-registration";
-    private static final String LOGIN_TOPIC = "user-login";
-    private static final String UPDATE_PROFILE_TOPIC = "user-profile-updated";
-    public static final String PASSWORD_CHANGED_TOPIC = "user-password-changed";
+    private final OutboxService outboxService;
 
-
-    public void sendUserRegistrationEvent(String username) {
-        kafkaTemplate.send(REGISTRATION_TOPIC, "New user registered: " + username);
+    public String sendUserRegistrationEvent(String username) {
+        return enqueueAccountEvent(USER_REGISTRATION, username);
     }
 
-    public void sendLoginEvent(UserLoginEvent loginEvent) {
-        try {
-            String message = objectMapper.writeValueAsString(loginEvent);
-            kafkaTemplate.send(LOGIN_TOPIC, message);
-        } catch (JsonProcessingException e) {
-            System.err.println("Error serializing login event: " + e.getMessage());
+    public String sendProfileUpdatedEvent(String username) {
+        return enqueueAccountEvent(USER_PROFILE_UPDATED, username);
+    }
+
+    public String sendPasswordChangedEvent(String username) {
+        return enqueueAccountEvent(USER_PASSWORD_CHANGED, username);
+    }
+
+    public String sendLoginEvent(UserLoginEvent event) {
+        String eventId = event.getEventId() == null ? UUID.randomUUID().toString() : event.getEventId();
+        event.setEventId(eventId);
+        event.setEventType(USER_LOGIN);
+        if (event.getUserId() == null) {
+            event.setUserId(event.getUsername());
         }
+        log.info("Enqueuing Login event {} for user {}", eventId, event.getUsername());
+        return outboxService.enqueue(eventId, "USER", event.getUsername(), USER_LOGIN, "1.0",
+                "user-service", null, null, event);
     }
 
-    public void sendProfileUpdatedEvent(String username) {
-        kafkaTemplate.send(UPDATE_PROFILE_TOPIC, "User profile updated: " + username);
-    }
-
-    public void sendPasswordChangedEvent(String username) {
-        kafkaTemplate.send(PASSWORD_CHANGED_TOPIC, "User password changed: " + username);
+    private String enqueueAccountEvent(String eventType, String username) {
+        String eventId = UUID.randomUUID().toString();
+        UserAccountEvent event = UserAccountEvent.builder()
+                .eventId(eventId)
+                .eventType(eventType)
+                .userId(username)
+                .username(username)
+                .occurredAt(Instant.now())
+                .build();
+        log.info("Enqueuing {} event {} for user {}", eventType, eventId, username);
+        return outboxService.enqueue(eventId, "USER", username, eventType, "1.0",
+                "user-service", null, null, event);
     }
 }
-

@@ -3,39 +3,29 @@ package com.nexgen.product_service.service;
 import com.nexgen.product_service.dto.ProductEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.*;
-import org.springframework.kafka.core.KafkaTemplate;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 
 class KafkaProducerServiceTest {
 
     @Mock
-    private KafkaTemplate<String, ProductEvent> kafkaTemplate;
+    private OutboxService outboxService;
 
-    @InjectMocks
     private KafkaProducerService kafkaProducerService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
-
-        // Manually set topic values since @Value won't populate in unit tests
-        kafkaProducerService = new KafkaProducerService(kafkaTemplate);
-        setField(kafkaProducerService, "productCreatedTopic", "product-created-topic");
-        setField(kafkaProducerService, "productUpdatedTopic", "product-updated-topic");
-        setField(kafkaProducerService, "productDeletedTopic", "product-deleted-topic");
-        setField(kafkaProducerService, "bootstrapServers", "localhost:9092");
-    }
-
-    private void setField(Object target, String fieldName, Object value) {
-        try {
-            var field = KafkaProducerService.class.getDeclaredField(fieldName);
-            field.setAccessible(true);
-            field.set(target, value);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        kafkaProducerService = new KafkaProducerService(outboxService);
     }
 
     private ProductEvent sampleEvent() {
@@ -49,31 +39,31 @@ class KafkaProducerServiceTest {
     }
 
     @Test
-    void sendProductCreatedEvent_sendsToCorrectTopic() {
+    void sendProductCreatedEvent_enqueuesProductCreated() {
         ProductEvent event = sampleEvent();
 
         kafkaProducerService.sendProductCreatedEvent(event);
 
-        verify(kafkaTemplate).send("product-created-topic", event);
+        ArgumentCaptor<String> eventId = ArgumentCaptor.forClass(String.class);
+        verify(outboxService).enqueue(eventId.capture(), eq("PRODUCT"), eq("SKU123"),
+                eq("product-created"), eq("1.0"), eq("product-service"), isNull(), isNull(), eq(event));
+        assertNotNull(eventId.getValue());
+        assertEquals(eventId.getValue(), event.getEventId(), "outbox id and payload eventId must match");
     }
 
     @Test
-    void sendProductStockUpdatedEvent_sendsToCorrectTopic() {
-        ProductEvent event = sampleEvent();
-        event.setEventType("STOCK_UPDATED");
+    void sendProductStockUpdatedEvent_enqueuesProductUpdated() {
+        kafkaProducerService.sendProductStockUpdatedEvent(sampleEvent());
 
-        kafkaProducerService.sendProductStockUpdatedEvent(event);
-
-        verify(kafkaTemplate).send("product-updated-topic", event);
+        verify(outboxService).enqueue(anyString(), anyString(), anyString(), eq("product-updated"),
+                anyString(), anyString(), any(), any(), any(ProductEvent.class));
     }
 
     @Test
-    void sendProductDeletedEvent_sendsToCorrectTopic() {
-        ProductEvent event = sampleEvent();
-        event.setEventType("DELETED");
+    void sendProductDeletedEvent_enqueuesProductDeleted() {
+        kafkaProducerService.sendProductDeletedEvent(sampleEvent());
 
-        kafkaProducerService.sendProductDeletedEvent(event);
-
-        verify(kafkaTemplate).send("product-deleted-topic", event);
+        verify(outboxService).enqueue(anyString(), anyString(), anyString(), eq("product-deleted"),
+                anyString(), anyString(), any(), any(), any(ProductEvent.class));
     }
 }

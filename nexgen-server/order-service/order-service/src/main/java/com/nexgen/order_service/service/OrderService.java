@@ -11,11 +11,15 @@ import java.util.List;
 public interface OrderService {
     OrderResponse createOrder(OrderRequest orderRequest, String userId);
 
-    OrderResponse createOrder(OrderRequest orderRequest, String userId, String authorizationHeader);
-
     OrderResponse getOrderById(String orderNumber, String requesterId, boolean privileged);
     PagedOrderResponse getOrdersByUserId(String userId, int page, int size, OrderStatus status);
     void cancelOrder(String orderNumber, String requesterId, boolean privileged);
     void updateOrderStatus(String orderNumber, OrderStatus newStatus);
     List<OrderStatusHistory> getOrderHistory(String orderNumber, String requesterId, boolean privileged);
+
+    /** Applied when inventory confirms the stock reservation. */
+    void confirmAfterInventoryReservation(String orderNumber);
+
+    /** Applied when inventory rejects the stock reservation. */
+    void cancelAfterInventoryRejection(String orderNumber, String reason);
 }

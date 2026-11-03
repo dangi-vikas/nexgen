@@ -25,20 +25,18 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class CartServiceImpl implements CartService {
-
-    private static final Logger log = LoggerFactory.getLogger(CartServiceImpl.class);
 
     private final CartItemRepository cartRepository;
     private final MeterRegistry meterRegistry;
     private final ProductCatalogClient productCatalogClient;
     private final OrderServiceClientImpl orderServiceClient;
+    private final CartEventProducerService cartEventProducer;
 
     private Counter getCartItemCounter;
     private Counter addToCartCounter;
@@ -214,11 +212,14 @@ public class CartServiceImpl implements CartService {
             throw new CartEmptyException("Cannot checkout an empty cart");
         }
 
-        List<com.nexgen.cart_service.dto.CartItemRequest> orderItems = new ArrayList<>();
+        List<CartItemRequest> orderItems = new ArrayList<>();
+        BigDecimal cartTotal = BigDecimal.ZERO;
         for (CartItem item : items) {
-            com.nexgen.cart_service.dto.CartItemRequest r = new com.nexgen.cart_service.dto.CartItemRequest(item.getProductId(), item.getQuantity());
-            orderItems.add(r);
+            orderItems.add(new CartItemRequest(item.getProductId(), item.getQuantity()));
+            BigDecimal unitPrice = item.getPrice() == null ? BigDecimal.ZERO : item.getPrice();
+            cartTotal = cartTotal.add(unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
         }
+        List<String> productIds = items.stream().map(CartItem::getProductId).toList();
 
         CheckoutRequest orderReq = new CheckoutRequest();
         orderReq.setUserId(request.getUserId());
@@ -227,60 +228,35 @@ public class CartServiceImpl implements CartService {
 
         CheckoutResponse response = orderServiceClient.checkoutWithItems(orderReq, orderItems, authorizationHeader);
 
-        cartRepository.deleteByUserId(request.getUserId());
-
         if (response == null) {
             throw new CartEmptyException("Checkout failed");
         }
+
+        // The order service returns the created order; fill in the values we know
+        // locally instead of the previous reflection-based patching.
+        if (response.getUserId() == null) {
+            response.setUserId(request.getUserId());
+        }
+        if (response.getTotalAmount() == null) {
+            response.setTotalAmount(cartTotal);
+        }
+        if (response.getPurchasedProductIds() == null || response.getPurchasedProductIds().isEmpty()) {
+            response.setPurchasedProductIds(productIds);
+        }
         if (response.getPaymentStatus() == null) {
-            try {
-                java.lang.reflect.Field p = CheckoutResponse.class.getDeclaredField("paymentStatus");
-                p.setAccessible(true);
-                p.set(response, "NOT_IMPLEMENTED");
-            } catch (Exception ignored) {
-            }
-        }
-        try {
-            java.lang.reflect.Field s = CheckoutResponse.class.getDeclaredField("status");
-            if (s.get(response) == null) {
-                java.lang.reflect.Field p2 = CheckoutResponse.class.getDeclaredField("paymentStatus");
-                p2.setAccessible(true);
-                Object ps = p2.get(response);
-                s.setAccessible(true);
-                s.set(response, ps == null ? "NOT_IMPLEMENTED" : ps);
-            }
-        } catch (Exception ignored) {
-        }
-        try {
-            java.lang.reflect.Field u = CheckoutResponse.class.getDeclaredField("userId");
-            if (u.get(response) == null) {
-                u.setAccessible(true);
-                u.set(response, request.getUserId());
-            }
-        } catch (Exception ignored) {
-        }
-        try {
-            java.lang.reflect.Field pid = CheckoutResponse.class.getDeclaredField("purchasedProductIds");
-            if (pid.get(response) == null) {
-                pid.setAccessible(true);
-                pid.set(response, items.stream().map(CartItem::getProductId).collect(Collectors.toList()));
-            }
-        } catch (Exception ignored) {
-        }
-        try {
-            java.lang.reflect.Field ta = CheckoutResponse.class.getDeclaredField("totalAmount");
-            if (ta.get(response) == null) {
-                BigDecimal total = BigDecimal.ZERO;
-                for (CartItem item : items) {
-                    BigDecimal unitPrice = item.getPrice() == null ? BigDecimal.ZERO : item.getPrice();
-                    total = total.add(unitPrice.multiply(BigDecimal.valueOf(item.getQuantity())));
-                }
-                ta.setAccessible(true);
-                ta.set(response, total);
-            }
-        } catch (Exception ignored) {
+            response.setPaymentStatus("NOT_IMPLEMENTED");
         }
 
+        cartEventProducer.sendCheckoutEvent(CheckoutEvent.builder()
+                .userId(request.getUserId())
+                .orderNumber(response.getOrderNumber())
+                .productIds(productIds)
+                .totalAmount(cartTotal.doubleValue())
+                .message("Checkout accepted; the order is awaiting stock confirmation")
+                .build());
+
+        // The cart is deliberately not deleted here: it is cleared when
+        // order-confirmed arrives, so a rejected reservation leaves it intact.
         return response;
     }
 

@@ -12,6 +12,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
@@ -24,6 +25,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @CachePut(value = "inventory", key = "#item.skuCode")
+    @Transactional
     public InventoryItem createItem(InventoryItem item) {
         if (item == null) {
             throw new IllegalArgumentException("Item is required");
@@ -46,12 +48,12 @@ public class InventoryServiceImpl implements InventoryService {
 
         InventoryItem createdItem = repository.save(item);
 
-        InventoryEvent event = new InventoryEvent(
-                item.getSkuCode(),
-                "CREATED",
-                item.getQuantity(),
-                Instant.now()
-        );
+        InventoryEvent event = InventoryEvent.builder()
+                .skuCode(item.getSkuCode())
+                .action("CREATED")
+                .quantity(item.getQuantity())
+                .eventTime(Instant.now())
+                .build();
 
         // Send CREATED event
         kafkaInventoryProducer.sendInventoryEvent(event);
@@ -61,6 +63,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @CachePut(value = "inventory", key = "#skuCode")
+    @Transactional
     public InventoryItem updateItem(String skuCode, InventoryItem updatedItem) {
         if (updatedItem == null) {
             throw new IllegalArgumentException("Updated item is required");
@@ -93,25 +96,21 @@ public class InventoryServiceImpl implements InventoryService {
         InventoryItem savedItem = repository.save(item);
 
         // Send "UPDATED" event
-        kafkaInventoryProducer.sendInventoryEvent(
-                new InventoryEvent(
-                        savedItem.getSkuCode(),
-                        "UPDATED",
-                        savedItem.getQuantity(),
-                        Instant.now()
-                )
-        );
+        kafkaInventoryProducer.sendInventoryEvent(InventoryEvent.builder()
+                .skuCode(savedItem.getSkuCode())
+                .action("UPDATED")
+                .quantity(savedItem.getQuantity())
+                .eventTime(Instant.now())
+                .build());
 
         //  Send "OUT_OF_STOCK" event if quantity is 0
         if (savedItem.getQuantity() == 0) {
-            kafkaInventoryProducer.sendInventoryEvent(
-                    new InventoryEvent(
-                            savedItem.getSkuCode(),
-                            "OUT_OF_STOCK",
-                            0,
-                            Instant.now()
-                    )
-            );
+            kafkaInventoryProducer.sendInventoryEvent(InventoryEvent.builder()
+                    .skuCode(savedItem.getSkuCode())
+                    .action("OUT_OF_STOCK")
+                    .quantity(0)
+                    .eventTime(Instant.now())
+                    .build());
         }
 
         return savedItem;
@@ -119,6 +118,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @CacheEvict(value = "inventory", key = "#skuCode")
+    @Transactional
     public void deleteItem(String skuCode) {
         InventoryItem item = repository.findBySkuCode(skuCode)
                 .orElseThrow(() -> new ItemNotFoundException("Item not found with SKU: " + skuCode));

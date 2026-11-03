@@ -40,12 +40,17 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       acks: all
+      properties:
+        # Fail fast instead of blocking for a minute when the broker is unreachable,
+        # so the outbox can record the failure and retry it.
+        max.block.ms: 5000
     consumer:
       group-id: order-service
+      auto-offset-reset: latest
+      # Events are consumed as raw JSON and parsed into each listener's DTO, so no
+      # producer class names travel in the payload or the headers.
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: '*'
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
 
 springdoc:
   api-docs:
@@ -57,8 +62,17 @@ springdoc:
 
 topic:
   order-created: order-created
+  order-confirmed: order-confirmed
   order-cancelled: order-cancelled
   order-status-updated: order-status-updated
+  inventory-reserved: inventory-reserved
+  inventory-rejected: inventory-rejected
+
+outbox:
+  publish:
+    delay: 2000
+    max-retries: 10
+    timeout-seconds: 10
 
 management:
   endpoints:

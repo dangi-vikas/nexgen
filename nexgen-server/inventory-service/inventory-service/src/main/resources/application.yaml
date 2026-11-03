@@ -36,12 +36,20 @@ spring:
     bootstrap-servers: ${KAFKA_HOST:localhost}:${KAFKA_PORT:9092}
     consumer:
       group-id: inventory-service
-      auto-offset-reset: earliest
-      key-serializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      # Never replay order history into the reservation logic on a fresh consumer
+      # group: an old order-created must not reserve stock today.
+      auto-offset-reset: latest
+      # Events are consumed as raw JSON and parsed into each listener's DTO.
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        # Fail fast instead of blocking for a minute when the broker is unreachable,
+        # so the outbox can record the failure and retry it.
+        max.block.ms: 5000
 
 springdoc:
   api-docs:
@@ -54,6 +62,20 @@ springdoc:
 
 topic:
   inventory-events: inventory-events-topic
+  inventory-reserved: inventory-reserved
+  inventory-rejected: inventory-rejected
+  order-created: order-created
+  order-confirmed: order-confirmed
+  order-cancelled: order-cancelled
+  product-created: product-created
+  product-updated: product-updated
+  product-deleted: product-deleted
+
+outbox:
+  publish:
+    delay: 2000
+    max-retries: 10
+    timeout-seconds: 10
 
 management:
   endpoints:
@@ -90,10 +112,3 @@ logging:
     org.hibernate.SQL: WARN
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
-
-prometheus:
-  image: prom/prometheus
-  ports:
-    - "9090:9090"
-  volumes:
-    - ./prometheus.yml:/etc/prometheus/prometheus.yml

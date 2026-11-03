@@ -1,82 +1,35 @@
 package com.nexgen.cart_service.service;
 
-import com.nexgen.cart_service.dto.AddToCartEvent;
-import com.nexgen.cart_service.dto.CartClearedEvent;
 import com.nexgen.cart_service.dto.CheckoutEvent;
-import com.nexgen.cart_service.dto.RemoveFromCartEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.UUID;
+
+/**
+ * Enqueues cart events into the outbox.
+ *
+ * <p>Only {@code cart-checkout} is still published: the item-added / item-removed /
+ * cart-cleared topics had no consumer anywhere, so they were removed rather than
+ * left as noise. Everything else the cart does is a reaction to
+ * {@code order-confirmed} and {@code product-deleted}.
+ */
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class CartEventProducerService {
 
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CartEventProducerService.class);
+    static final String CART_CHECKOUT = "cart-checkout";
 
-    private final KafkaTemplate<String, Object> kafkaTemplate;
-    private final KafkaFallbackService fallbackService;
-    private static final String FALLBACK_ERROR = "Kafka send failed. Falling back to Redis: {}";
+    private final OutboxService outboxService;
 
-    public CartEventProducerService(KafkaTemplate<String, Object> kafkaTemplate, KafkaFallbackService fallbackService) {
-        this.kafkaTemplate = kafkaTemplate;
-        this.fallbackService = fallbackService;
-    }
-
-    @Value("${topic.cart-cleared}")
-    private String cartClearedTopic;
-
-    @Value("${topic.cart-item-added}")
-    private String carAddedTopic;
-
-    @Value("${topic.cart-item-removed}")
-    private String cartRemovedTopic;
-
-    @Value("${topic.cart-checkout}")
-    private String cartCheckoutTopic;
-
-    public void sendCartClearedEvent(CartClearedEvent event) {
-        log.info("Publishing Cart Cleared event: {}", event);
-
-        try {
-            kafkaTemplate.send(cartClearedTopic, event);
-        } catch (Exception ex) {
-            log.error(FALLBACK_ERROR, ex.getMessage());
-            fallbackService.enqueueFailedEvent(event);
-        }
-
-    }
-
-    public void sendAddToCartEvent(AddToCartEvent event) {
-        log.info("Publishing Add to Cart event: {}", event);
-        try {
-            kafkaTemplate.send(carAddedTopic, event);
-        } catch(Exception ex) {
-            log.error(FALLBACK_ERROR, ex.getMessage());
-            fallbackService.enqueueFailedEvent(event);
-        }
-    }
-
-    public void sendRemoveFromCartEvent(RemoveFromCartEvent event) {
-        log.info("Publishing Remove from Cart  event: {}", event);
-
-        try {
-            kafkaTemplate.send(cartRemovedTopic, event);
-        } catch(Exception ex) {
-            log.error(FALLBACK_ERROR, ex.getMessage());
-            fallbackService.enqueueFailedEvent(event);
-        }
-    }
-
-    public void sendCheckoutEvent(CheckoutEvent event) {
-        log.info("Publishing Checkout event: {}", event);
-
-        try {
-            kafkaTemplate.send(cartCheckoutTopic, event);
-        } catch (Exception ex) {
-            log.error(FALLBACK_ERROR, ex.getMessage());
-            fallbackService.enqueueFailedEvent(event);
-        }
+    public String sendCheckoutEvent(CheckoutEvent event) {
+        String eventId = event.getEventId() == null ? UUID.randomUUID().toString() : event.getEventId();
+        event.setEventId(eventId);
+        event.setEventType(CART_CHECKOUT);
+        log.info("Enqueuing Checkout event {} for user {}", eventId, event.getUserId());
+        return outboxService.enqueue(eventId, "CART", event.getUserId(), CART_CHECKOUT, "1.0",
+                "cart-service", null, null, event);
     }
 }

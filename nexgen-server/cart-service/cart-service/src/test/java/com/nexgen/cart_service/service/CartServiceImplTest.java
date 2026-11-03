@@ -38,6 +38,9 @@ class CartServiceImplTest {
     private OrderServiceClientImpl orderServiceClient;
 
     @Mock
+    private CartEventProducerService cartEventProducer;
+
+    @Mock
     private Counter getCartItemCounter;
     @Mock
     private Counter addToCartCounter;
@@ -160,7 +163,10 @@ class CartServiceImplTest {
 
         assertEquals(BigDecimal.valueOf(500.0), response.getTotalAmount());
         assertEquals("NOT_IMPLEMENTED", response.getPaymentStatus());
-        verify(cartRepository).deleteByUserId(userId);
+        // The cart survives checkout: order-confirmed clears it, so a rejected
+        // reservation does not silently empty the customer's cart.
+        verify(cartRepository, never()).deleteByUserId(userId);
+        verify(cartEventProducer).sendCheckoutEvent(any(CheckoutEvent.class));
         verify(checkoutCounter).increment();
     }
 

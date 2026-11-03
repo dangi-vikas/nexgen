@@ -9,6 +9,7 @@ public interface CartItemRepository extends JpaRepository<CartItem, Long> {
 
     List<CartItem> findByUserId(String userId);
     void deleteByUserId(String userId);
+    void deleteByProductId(String productId);
     boolean existsByUserIdAndProductId(String userId, String productId);
     CartItem findByUserIdAndProductId(String userId, String productId);
 

@@ -10,8 +10,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProductEvent {
+
+    private String eventId;
     private String skuCode;
-    private String eventType; // e.g., CREATED, UPDATED, DELETED
+    /** CREATED, STOCK_UPDATED or DELETED. */
+    private String eventType;
     private String name;
     private int quantity;
     private long timestamp;

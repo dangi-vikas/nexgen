@@ -31,12 +31,26 @@ spring:
 
   kafka:
     bootstrap-servers: ${KAFKA_HOST:localhost}:${KAFKA_PORT:9092}
-    consumer:
-      group-id: user-service
-      auto-offset-reset: earliest
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        # Fail fast instead of blocking for a minute when the broker is unreachable,
+        # so the outbox can record the failure and retry it.
+        max.block.ms: 5000
+
+topic:
+  user-registration: user-registration
+  user-login: user-login
+  user-profile-updated: user-profile-updated
+  user-password-changed: user-password-changed
+
+outbox:
+  publish:
+    delay: 2000
+    max-retries: 10
+    timeout-seconds: 10
 
 jwt:
   secret: ${JWT_SECRET}

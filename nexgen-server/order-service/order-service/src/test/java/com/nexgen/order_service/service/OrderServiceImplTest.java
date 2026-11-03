@@ -43,9 +43,6 @@ class OrderServiceImplTest {
     @Mock
     private com.nexgen.order_service.client.ProductCatalogClient productCatalogClient;
 
-    @Mock
-    private com.nexgen.order_service.client.InventoryClient inventoryClient;
-
     @BeforeEach
     void setup() {
         MockitoAnnotations.openMocks(this);
@@ -60,7 +57,6 @@ class OrderServiceImplTest {
         ));
         request.setIdempotencyKey("key1");
         when(productCatalogClient.getProduct("SKU1")).thenReturn(new com.nexgen.order_service.client.ProductCatalogClient.ProductSnapshot("SKU1", "Prod", java.math.BigDecimal.valueOf(100.0)));
-        doNothing().when(inventoryClient).reserve(anyString(), anyList(), any());
 
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         when(orderRepository.save(any(Order.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -72,7 +68,7 @@ class OrderServiceImplTest {
         assertEquals(OrderStatus.CREATED, response.getStatus());
         assertEquals(1, response.getOrderItems().size());
         verify(orderRepository, times(1)).save(orderCaptor.capture());
-        verify(kafkaProducerService).sendOrderCreatedEvent(any(OrderEvent.class));
+        verify(kafkaProducerService).sendOrderCreatedEvent(any(OrderCreatedEvent.class));
     }
 
     @Test

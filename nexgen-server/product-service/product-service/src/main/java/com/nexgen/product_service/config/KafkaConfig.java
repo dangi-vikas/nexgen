@@ -17,6 +17,9 @@ public class KafkaConfig {
     @Value("${topic.product-deleted:product-deleted}")
     private String productDeleted;
 
+    @Value("${topic.inventory-events:inventory-events-topic}")
+    private String inventoryEvents;
+
     @Bean
     public NewTopic productCreatedTopic() {
         return TopicBuilder.name(productCreated).partitions(3).replicas(1).build();
@@ -30,5 +33,10 @@ public class KafkaConfig {
     @Bean
     public NewTopic productDeletedTopic() {
         return TopicBuilder.name(productDeleted).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    public NewTopic inventoryEventsTopic() {
+        return TopicBuilder.name(inventoryEvents).partitions(3).replicas(1).build();
     }
 }

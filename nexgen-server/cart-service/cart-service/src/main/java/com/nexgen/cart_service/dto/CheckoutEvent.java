@@ -1,52 +1,35 @@
 package com.nexgen.cart_service.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.List;
 
+/**
+ * Payload of {@code cart-checkout}: a checkout was accepted for the user and an
+ * order is awaiting stock confirmation. Published from the same transaction that
+ * writes it, so it is never sent for a checkout that failed to reach the order
+ * service.
+ */
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class CheckoutEvent {
+
+    private String eventId;
+
+    private String eventType;
+
     private String userId;
+
+    private String orderNumber;
+
     private List<String> productIds;
+
     private double totalAmount;
+
     private String message;
-
-    public CheckoutEvent() {
-    }
-
-    public CheckoutEvent(String userId, List<String> productIds, double totalAmount, String message) {
-        this.userId = userId;
-        this.productIds = productIds;
-        this.totalAmount = totalAmount;
-        this.message = message;
-    }
-
-    public String getUserId() {
-        return userId;
-    }
-
-    public void setUserId(String userId) {
-        this.userId = userId;
-    }
-
-    public List<String> getProductIds() {
-        return productIds;
-    }
-
-    public void setProductIds(List<String> productIds) {
-        this.productIds = productIds;
-    }
-
-    public double getTotalAmount() {
-        return totalAmount;
-    }
-
-    public void setTotalAmount(double totalAmount) {
-        this.totalAmount = totalAmount;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
 }

@@ -57,10 +57,11 @@ public class AuthController {
         String refreshToken = jwtService.generateRefreshToken(user);
 
         redisService.saveRefreshToken(user.getUsername(), refreshToken);
-        kafkaProducerService.sendLoginEvent(new UserLoginEvent(
-                request.getUsername(),
-                servletRequest.getRemoteAddr(),
-                Instant.now()));
+        kafkaProducerService.sendLoginEvent(UserLoginEvent.builder()
+                .username(request.getUsername())
+                .ipAddress(servletRequest.getRemoteAddr())
+                .loginTime(Instant.now())
+                .build());
 
         return ResponseEntity.ok(toAuthResponse(user, accessToken, refreshToken));
     }

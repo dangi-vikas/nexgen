@@ -1,6 +1,5 @@
 package com.nexgen.order_service.service;
 
-import com.nexgen.order_service.client.InventoryClient;
 import com.nexgen.order_service.client.ProductCatalogClient;
 import com.nexgen.order_service.dto.*;
 import com.nexgen.order_service.entity.Order;
@@ -14,6 +13,8 @@ import com.nexgen.order_service.repository.OrderStatusHistoryRepository;
 import io.micrometer.core.annotation.Timed;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,29 +31,32 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+/**
+ * Order aggregate.
+ *
+ * <p>Order creation is a local transaction plus a single {@code order-created}
+ * event in the outbox: stock is reserved by the inventory service consuming that
+ * event, never by a synchronous HTTP call. The order therefore starts as CREATED
+ * and is moved to CONFIRMED or CANCELLED by {@code inventory-reserved} /
+ * {@code inventory-rejected}.
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
+
+    private static final String CORRELATION_ID = "correlationId";
 
     private final OrderRepository orderRepository;
     private final OrderKafkaProducerService kafkaProducerService;
     private final OrderStatusHistoryRepository historyRepository;
     private final MeterRegistry meterRegistry;
     private final ProductCatalogClient productCatalogClient;
-    private final InventoryClient inventoryClient;
-    private final com.nexgen.order_service.service.OutboxService outboxService;
 
     @CacheEvict(value = "ordersByUser", allEntries = true)
     @Override
     @Transactional
     public OrderResponse createOrder(OrderRequest orderRequest, String userId) {
-        return createOrder(orderRequest, userId, null);
-    }
-
-    @CacheEvict(value = "ordersByUser", allEntries = true)
-    @Override
-    @Transactional
-    public OrderResponse createOrder(OrderRequest orderRequest, String userId, String authorizationHeader) {
         if (orderRequest == null) {
             throw new InvalidOrderException("Order request is required");
         }
@@ -72,16 +76,6 @@ public class OrderServiceImpl implements OrderService {
         }
 
         String orderNumber = UUID.randomUUID().toString();
-        String auth = authorizationHeader;
-        if (auth != null && !auth.isBlank() && !auth.toLowerCase().startsWith("bearer")) {
-            auth = "Bearer " + auth;
-        }
-
-        try {
-            inventoryClient.reserve(orderNumber, orderRequest.getOrderItems(), auth);
-        } catch (RuntimeException ex) {
-            throw ex;
-        }
 
         Order order = new Order();
         order.setOrderNumber(orderNumber);
@@ -95,17 +89,14 @@ public class OrderServiceImpl implements OrderService {
         BigDecimal total = BigDecimal.ZERO;
         for (OrderItemRequest itemReq : orderRequest.getOrderItems()) {
             if (itemReq.getQuantity() == null || itemReq.getQuantity() <= 0) {
-                inventoryClient.release(orderNumber, auth);
                 throw new InvalidOrderException("Quantity must be at least 1");
             }
             if (itemReq.getSkuCode() == null || itemReq.getSkuCode().isBlank()) {
-                inventoryClient.release(orderNumber, auth);
                 throw new InvalidOrderException("SKU code is required");
             }
             ProductCatalogClient.ProductSnapshot product = productCatalogClient.getProduct(itemReq.getSkuCode());
             BigDecimal unitPrice = product.price();
             if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) <= 0) {
-                inventoryClient.release(orderNumber, auth);
                 throw new InvalidOrderException("Invalid product price for SKU: " + itemReq.getSkuCode());
             }
             BigDecimal lineTotal = unitPrice.multiply(BigDecimal.valueOf(itemReq.getQuantity()));
@@ -122,59 +113,23 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderItems(items);
         order.setTotalAmount(total);
 
-        meterRegistry.counter("order.created", "order", order.getOrderNumber()).increment();
-
+        Order savedOrder;
         try {
-            Order savedOrder = orderRepository.save(order);
-            try {
-                kafkaProducerService.sendOrderCreatedEvent(
-                    new OrderEvent(savedOrder.getOrderNumber(), savedOrder.getUserId(), savedOrder.getStatus(), Instant.now().toEpochMilli())
-                );
-                List<com.nexgen.order_service.dto.OrderCreatedEvent.OrderItemEvent> itemEvents = savedOrder.getOrderItems() == null ? List.of() : savedOrder.getOrderItems().stream()
-                        .map(i -> {
-                            BigDecimal lineTotal = i.getLineTotal();
-                            if (lineTotal == null && i.getPrice() != null && i.getQuantity() != null) {
-                                lineTotal = i.getPrice().multiply(BigDecimal.valueOf(i.getQuantity()));
-                            }
-                            return new com.nexgen.order_service.dto.OrderCreatedEvent.OrderItemEvent(i.getSkuCode(), i.getQuantity(), i.getPrice(), lineTotal);
-                        })
-                        .collect(java.util.stream.Collectors.toList());
-                com.nexgen.order_service.dto.OrderCreatedEvent createdEvent = new com.nexgen.order_service.dto.OrderCreatedEvent(
-                        savedOrder.getOrderNumber(),
-                        savedOrder.getUserId(),
-                        savedOrder.getStatus(),
-                        savedOrder.getTotalAmount(),
-                        itemEvents,
-                        Instant.now(),
-                        null,
-                        savedOrder.getIdempotencyKey()
-                );
-                try {
-                    if (outboxService != null) {
-                        outboxService.enqueue("ORDER", savedOrder.getOrderNumber(), "order-created", "1.0", "order-service", null, null, createdEvent);
-                    }
-                } catch (Exception ignored) {
-                }
-                kafkaProducerService.sendOrderCreatedEvent(createdEvent);
-            } catch (Exception ex) {
-                // Don't fail order creation if event publishing fails
-            }
-            return mapToResponse(savedOrder);
+            savedOrder = orderRepository.save(order);
         } catch (DataIntegrityViolationException ex) {
-            inventoryClient.release(orderNumber, auth);
-            String replayKey = null;
-            if (orderRequest != null) {
-                try { replayKey = orderRequest.getIdempotencyKey(); } catch (Exception ignored) {}
-            }
-            var replay = orderRepository.findByUserIdAndIdempotencyKey(userId, replayKey);
+            // Two concurrent requests with the same idempotency key: return the winner.
+            var replay = orderRepository.findByUserIdAndIdempotencyKey(userId, orderRequest.getIdempotencyKey());
             if (replay.isPresent()) {
                 return mapToResponse(replay.get());
             }
             throw ex;
-        } catch (RuntimeException ex) {
-            inventoryClient.release(orderNumber, auth);
-            throw ex;
         }
+
+        meterRegistry.counter("order.created", "order", savedOrder.getOrderNumber()).increment();
+
+        kafkaProducerService.sendOrderCreatedEvent(buildOrderCreatedEvent(savedOrder));
+
+        return mapToResponse(savedOrder);
     }
 
     @Timed(value = "order.get.by.id", description = "Time taken to fetch orders by orderId")
@@ -219,32 +174,8 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public void cancelOrder(String orderNumber, String requesterId, boolean privileged) {
         Order order = findOrderForRequester(orderNumber, requesterId, privileged);
-
-        OrderStatus currentStatus = order.getStatus();
-        if (!currentStatus.canTransitionTo(OrderStatus.CANCELLED)) {
-            throw new IllegalStateException("Invalid status transition from " + currentStatus + " to CANCELLED");
-        }
-
-        order.setStatus(OrderStatus.CANCELLED);
-        orderRepository.save(order);
-
-        OrderStatusHistory history = OrderStatusHistory.builder()
-                .orderNumber(orderNumber)
-                .oldStatus(currentStatus)
-                .newStatus(OrderStatus.CANCELLED)
-                .changedAt(Instant.now())
-                .changedBy(requesterId == null ? "system" : requesterId)
-                .build();
-        historyRepository.save(history);
-
-        try {
-            OrderEvent ev = new OrderEvent(order.getOrderNumber(), order.getUserId(), order.getStatus(), Instant.now().toEpochMilli());
-            if (outboxService != null) {
-                outboxService.enqueue("ORDER", order.getOrderNumber(), "order-cancelled", "1.0", "order-service", null, null, ev);
-            }
-            kafkaProducerService.sendOrderCancelledEvent(ev);
-        } catch (Exception ignored) {
-        }
+        String reason = "Order cancelled by " + (requesterId == null ? "system" : requesterId);
+        transition(order, OrderStatus.CANCELLED, requesterId == null ? "system" : requesterId, reason);
     }
 
     @Override
@@ -256,38 +187,134 @@ public class OrderServiceImpl implements OrderService {
 
         meterRegistry.counter("order.status.updated", "status", newStatus.name()).increment();
 
-        OrderStatus currentStatus = order.getStatus();
-        if (!currentStatus.canTransitionTo(newStatus)) {
-            throw new IllegalStateException("Invalid status transition from " + currentStatus + " to " + newStatus);
+        transition(order, newStatus, "system", null);
+    }
+
+    @Override
+    @CacheEvict(value = "ordersByUser", allEntries = true)
+    @Transactional
+    public void confirmAfterInventoryReservation(String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new OrderNotFoundException(orderNumber));
+
+        if (order.getStatus() != OrderStatus.CREATED) {
+            log.info("Order {} is already {}, ignoring inventory-reserved", orderNumber, order.getStatus());
+            return;
         }
 
-        order.setStatus(newStatus);
+        order.setStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
+        saveHistory(order, OrderStatus.CREATED, OrderStatus.CONFIRMED, "inventory-service");
 
-        OrderStatusHistory history = OrderStatusHistory.builder()
-                .orderNumber(orderNumber)
-                .oldStatus(currentStatus)
-                .newStatus(newStatus)
-                .changedAt(Instant.now())
-                .changedBy("system")
-                .build();
+        kafkaProducerService.sendOrderConfirmedEvent(OrderEvent.builder()
+                .orderNumber(order.getOrderNumber())
+                .userId(order.getUserId())
+                .status(OrderStatus.CONFIRMED)
+                .timestamp(Instant.now().toEpochMilli())
+                .correlationId(MDC.get(CORRELATION_ID))
+                .build());
+    }
 
-        historyRepository.save(history);
+    @Override
+    @CacheEvict(value = "ordersByUser", allEntries = true)
+    @Transactional
+    public void cancelAfterInventoryRejection(String orderNumber, String reason) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseThrow(() -> new OrderNotFoundException(orderNumber));
 
-        try {
-            OrderEvent ev = new OrderEvent(order.getOrderNumber(), order.getUserId(), newStatus, Instant.now().toEpochMilli());
-            if (outboxService != null) {
-                outboxService.enqueue("ORDER", order.getOrderNumber(), "order-status-updated", "1.0", "order-service", null, null, ev);
-            }
-            kafkaProducerService.sendOrderUpdatedEvent(ev);
-        } catch (Exception ignored) {
+        if (order.getStatus() != OrderStatus.CREATED) {
+            log.info("Order {} is already {}, ignoring inventory-rejected", orderNumber, order.getStatus());
+            return;
         }
+
+        order.setStatus(OrderStatus.CANCELLED);
+        orderRepository.save(order);
+        saveHistory(order, OrderStatus.CREATED, OrderStatus.CANCELLED, "inventory-service");
+
+        kafkaProducerService.sendOrderCancelledEvent(OrderEvent.builder()
+                .orderNumber(order.getOrderNumber())
+                .userId(order.getUserId())
+                .status(OrderStatus.CANCELLED)
+                .timestamp(Instant.now().toEpochMilli())
+                .correlationId(MDC.get(CORRELATION_ID))
+                .reason(reason == null ? "Inventory reservation rejected" : reason)
+                .build());
     }
 
     @Override
     public List<OrderStatusHistory> getOrderHistory(String orderNumber, String requesterId, boolean privileged) {
         findOrderForRequester(orderNumber, requesterId, privileged);
         return historyRepository.findByOrderNumberOrderByChangedAtDesc(orderNumber);
+    }
+
+    private void transition(Order order, OrderStatus newStatus, String changedBy, String reason) {
+        OrderStatus currentStatus = order.getStatus();
+        if (currentStatus == newStatus) {
+            return;
+        }
+        if (!currentStatus.canTransitionTo(newStatus)) {
+            throw new IllegalStateException("Invalid status transition from " + currentStatus + " to " + newStatus);
+        }
+
+        order.setStatus(newStatus);
+        orderRepository.save(order);
+        saveHistory(order, currentStatus, newStatus, changedBy);
+
+        OrderEvent event = OrderEvent.builder()
+                .orderNumber(order.getOrderNumber())
+                .userId(order.getUserId())
+                .status(newStatus)
+                .timestamp(Instant.now().toEpochMilli())
+                .correlationId(MDC.get(CORRELATION_ID))
+                .reason(reason)
+                .build();
+
+        if (newStatus == OrderStatus.CANCELLED) {
+            // Inventory has to release whatever it reserved for this order.
+            kafkaProducerService.sendOrderCancelledEvent(event);
+        } else {
+            kafkaProducerService.sendOrderUpdatedEvent(event);
+        }
+    }
+
+    private void saveHistory(Order order, OrderStatus oldStatus, OrderStatus newStatus, String changedBy) {
+        historyRepository.save(OrderStatusHistory.builder()
+                .orderNumber(order.getOrderNumber())
+                .oldStatus(oldStatus)
+                .newStatus(newStatus)
+                .changedAt(Instant.now())
+                .changedBy(changedBy)
+                .build());
+    }
+
+    private OrderCreatedEvent buildOrderCreatedEvent(Order savedOrder) {
+        List<OrderCreatedEvent.OrderItemEvent> itemEvents = savedOrder.getOrderItems() == null ? List.of()
+                : savedOrder.getOrderItems().stream()
+                .map(i -> {
+                    BigDecimal lineTotal = i.getLineTotal();
+                    if (lineTotal == null && i.getPrice() != null && i.getQuantity() != null) {
+                        lineTotal = i.getPrice().multiply(BigDecimal.valueOf(i.getQuantity()));
+                    }
+                    return OrderCreatedEvent.OrderItemEvent.builder()
+                            .skuCode(i.getSkuCode())
+                            .quantity(i.getQuantity())
+                            .price(i.getPrice())
+                            .lineTotal(lineTotal)
+                            .build();
+                })
+                .collect(Collectors.toList());
+
+        return OrderCreatedEvent.builder()
+                .eventId(UUID.randomUUID().toString())
+                .orderNumber(savedOrder.getOrderNumber())
+                .userId(savedOrder.getUserId())
+                .status(savedOrder.getStatus())
+                .totalAmount(savedOrder.getTotalAmount())
+                .items(itemEvents)
+                .timestamp(Instant.now())
+                .correlationId(MDC.get(CORRELATION_ID))
+                .idempotencyKey(savedOrder.getIdempotencyKey())
+                .build();
     }
 
     private Order findOrderForRequester(String orderNumber, String requesterId, boolean privileged) {

@@ -21,4 +21,7 @@ public class ReservationRequest {
     @NotEmpty
     @Valid
     private List<ReservationItemRequest> items;
+
+    /** Correlation id of the order-created event this reservation answers. */
+    private String correlationId;
 }

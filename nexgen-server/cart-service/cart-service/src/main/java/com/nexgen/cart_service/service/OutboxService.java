@@ -1,42 +1,59 @@
 package com.nexgen.cart_service.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexgen.cart_service.entity.OutboxEvent;
 import com.nexgen.cart_service.repository.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.UUID;
 
+/**
+ * Transactional outbox writer. Cart events are published by {@link OutboxPublisher}
+ * from rows written in the transaction that changed the cart, so the previous
+ * fire-and-forget {@code KafkaTemplate.send} (which could never observe a failure)
+ * is gone.
+ */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class OutboxService {
+
+    private static final String CORRELATION_ID = "correlationId";
 
     private final OutboxEventRepository outboxEventRepository;
     private final ObjectMapper objectMapper;
 
-    @Transactional
-    public void publish(String aggregateType, String aggregateId, String eventType, Object payload, String correlationId) {
+    public String enqueue(String eventId, String aggregateType, String aggregateId, String eventType,
+                          String eventVersion, String producer, String correlationId, String causationId,
+                          Object payload) {
+        if (eventId == null || eventId.isBlank()) {
+            eventId = UUID.randomUUID().toString();
+        }
         try {
             OutboxEvent event = OutboxEvent.builder()
-                    .id(UUID.randomUUID().toString())
+                    .id(eventId)
                     .aggregateType(aggregateType)
                     .aggregateId(aggregateId)
                     .eventType(eventType)
-                    .eventVersion("1.0")
+                    .eventVersion(eventVersion == null ? "1.0" : eventVersion)
                     .occurredAt(Instant.now())
-                    .producer("cart-service")
-                    .correlationId(correlationId)
+                    .producer(producer)
+                    .correlationId(correlationId == null ? MDC.get(CORRELATION_ID) : correlationId)
+                    .causationId(causationId)
                     .payload(objectMapper.writeValueAsString(payload))
                     .status("PENDING")
                     .retryCount(0)
                     .build();
             outboxEventRepository.save(event);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("Failed to serialize outbox event", e);
+            log.debug("Enqueued outbox event {} ({}) for {}", eventId, eventType, aggregateId);
+            return eventId;
+        } catch (Exception e) {
+            log.error("Failed to enqueue outbox event of type {}", eventType, e);
+            throw new RuntimeException(e);
         }
     }
 }

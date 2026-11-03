@@ -28,13 +28,10 @@ public class OrderController {
     @Operation(summary = "Create a new order")
     @PostMapping
     public ResponseEntity<OrderResponse> createOrder(
-            @Valid @RequestBody OrderRequest orderRequest, Authentication authentication,
-            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
-        String auth = authorizationHeader;
-        if (auth == null || auth.isBlank()) {
-            // try to build from token if present in context is not available; fallback
-        }
-        OrderResponse orderResponse = orderService.createOrder(orderRequest, authentication.getName(), auth);
+            @Valid @RequestBody OrderRequest orderRequest, Authentication authentication) {
+        // Stock is reserved asynchronously by the inventory service consuming
+        // order-created; the response is therefore CREATED, not CONFIRMED.
+        OrderResponse orderResponse = orderService.createOrder(orderRequest, authentication.getName());
         return ResponseEntity.ok(orderResponse);
     }
 

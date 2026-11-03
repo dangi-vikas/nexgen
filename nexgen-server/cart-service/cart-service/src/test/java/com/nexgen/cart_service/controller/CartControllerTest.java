@@ -7,7 +7,6 @@ import com.nexgen.cart_service.dto.CartItemResponse;
 import com.nexgen.cart_service.dto.CheckoutRequest;
 import com.nexgen.cart_service.dto.CheckoutResponse;
 import com.nexgen.cart_service.entity.CartItem;
-import com.nexgen.cart_service.service.CartEventProducerService;
 import com.nexgen.cart_service.service.CartService;
 import com.nexgen.cart_service.support.JwtTestSupport;
 import org.junit.jupiter.api.Test;
@@ -41,9 +40,6 @@ class CartControllerTest {
 
     @MockitoBean
     private CartService cartService;
-
-    @MockitoBean
-    private CartEventProducerService cartEventProducer;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -92,9 +88,6 @@ class CartControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.productId").value("product1"))
                 .andExpect(jsonPath("$.data.quantity").value(2));
-
-        Mockito.verify(cartEventProducer).sendAddToCartEvent(Mockito.argThat(event ->
-                event != null && userId.equals(event.getUserId()) && "product1".equals(event.getProductId())));
     }
 
     @Test
@@ -128,18 +121,13 @@ class CartControllerTest {
         String userId = "user1";
 
         Mockito.doNothing().when(cartService).clearCart(userId);
-        Mockito.when(cartService.getItemsByUserId(userId)).thenReturn(List.of(
-                CartItem.builder().userId(userId).productId("p1").quantity(1).price(java.math.BigDecimal.valueOf(10.0)).build(),
-                CartItem.builder().userId(userId).productId("p2").quantity(2).price(java.math.BigDecimal.valueOf(20.0)).build()
-        ));
 
         mockMvc.perform(delete("/api/v1/cart/{userId}/clear", userId)
                         .with(userJwt(userId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        Mockito.verify(cartEventProducer).sendCartClearedEvent(Mockito.argThat(event ->
-                userId.equals(event.getUserId()) && event.getQuantity() == 3));
+        Mockito.verify(cartService).clearCart(userId);
     }
 
     @Test
@@ -156,10 +144,6 @@ class CartControllerTest {
                 .build();
 
         Mockito.when(cartService.checkout(Mockito.any(CheckoutRequest.class), Mockito.any())).thenReturn(response);
-        Mockito.when(cartService.getItemsByUserId(userId)).thenReturn(List.of(
-                CartItem.builder().userId(userId).productId("p1").quantity(1).price(java.math.BigDecimal.valueOf(10.0)).build(),
-                CartItem.builder().userId(userId).productId("p2").quantity(2).price(java.math.BigDecimal.valueOf(10.0)).build()
-        ));
 
         mockMvc.perform(post("/api/v1/cart/checkout")
                         .with(userJwt(userId))
@@ -168,9 +152,6 @@ class CartControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userId").value(userId))
                 .andExpect(jsonPath("$.data.totalAmount").value(30.0));
-
-        Mockito.verify(cartEventProducer).sendCheckoutEvent(Mockito.argThat(event ->
-                userId.equals(event.getUserId()) && event.getTotalAmount() == 30.0));
     }
 
     @Test

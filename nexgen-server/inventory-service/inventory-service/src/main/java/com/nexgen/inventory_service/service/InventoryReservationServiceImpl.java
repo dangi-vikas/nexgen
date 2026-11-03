@@ -1,5 +1,7 @@
 package com.nexgen.inventory_service.service;
 
+import com.nexgen.inventory_service.dto.InventoryEvent;
+import com.nexgen.inventory_service.dto.InventoryReservedEvent;
 import com.nexgen.inventory_service.dto.ReservationItemRequest;
 import com.nexgen.inventory_service.dto.ReservationRequest;
 import com.nexgen.inventory_service.dto.ReservationResponse;
@@ -12,6 +14,7 @@ import com.nexgen.inventory_service.exception.ItemNotFoundException;
 import com.nexgen.inventory_service.repository.InventoryRepository;
 import com.nexgen.inventory_service.repository.InventoryReservationRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,14 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Owns stock reservation.
+ *
+ * <p>Reserving, releasing and confirming all happen here and publish their outcome
+ * to the outbox inside the same transaction, so the reservation table and the
+ * events sent to the order service cannot drift apart.
+ */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -27,6 +38,8 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
     private final InventoryRepository inventoryRepository;
     private final InventoryReservationRepository reservationRepository;
+    private final InventoryOutcomePublisher outcomePublisher;
+    private final KafkaInventoryProducer inventoryEventProducer;
 
     @Override
     @CacheEvict(value = "inventory", allEntries = true)
@@ -38,18 +51,30 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             throw new InventoryReservationException("items are required");
         }
 
-        if (reservationRepository.existsByOrderNumber(request.getOrderNumber())) {
-            List<InventoryReservation> existing = reservationRepository.findByOrderNumber(request.getOrderNumber());
-            List<ReservationItemRequest> items = existing.stream()
-                    .map(r -> ReservationItemRequest.builder()
+        String orderNumber = request.getOrderNumber();
+        String correlationId = request.getCorrelationId();
+
+        if (reservationRepository.existsByOrderNumber(orderNumber)) {
+            // Already reserved (redelivery or a retry after a crash between the
+            // reservation commit and the processed-event marker). Re-announce the
+            // outcome, because the previous announcement may never have been sent.
+            List<InventoryReservation> existing = reservationRepository.findByOrderNumber(orderNumber);
+            List<InventoryReservedEvent.Item> items = existing.stream()
+                    .map(r -> InventoryReservedEvent.Item.builder()
                             .skuCode(r.getSkuCode())
                             .quantity(r.getQuantity())
                             .build())
                     .toList();
+            outcomePublisher.reserved(orderNumber, correlationId, items);
             return ReservationResponse.builder()
-                    .orderNumber(request.getOrderNumber())
+                    .orderNumber(orderNumber)
                     .status("RESERVED")
-                    .items(items)
+                    .items(existing.stream()
+                            .map(r -> ReservationItemRequest.builder()
+                                    .skuCode(r.getSkuCode())
+                                    .quantity(r.getQuantity())
+                                    .build())
+                            .toList())
                     .build();
         }
 
@@ -63,11 +88,12 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
 
             int updated = inventoryRepository.reserve(item.getSkuCode(), item.getQuantity());
             if (updated == 0) {
-                throw new InsufficientStockException("Insufficient stock for SKU: " + item.getSkuCode());
+                throw new InsufficientStockException("Insufficient stock for SKU: " + item.getSkuCode()
+                        + " (available " + inventoryItem.getAvailableQuantity() + ")");
             }
 
             InventoryReservation reservation = InventoryReservation.builder()
-                    .orderNumber(request.getOrderNumber())
+                    .orderNumber(orderNumber)
                     .skuCode(item.getSkuCode())
                     .quantity(item.getQuantity())
                     .status(ReservationStatus.RESERVED)
@@ -76,11 +102,21 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
                     .version(0L)
                     .build();
             reservationRepository.save(reservation);
-            reservedItems.add(ReservationItemRequest.builder().skuCode(item.getSkuCode()).quantity(item.getQuantity()).build());
+            reservedItems.add(ReservationItemRequest.builder()
+                    .skuCode(item.getSkuCode())
+                    .quantity(item.getQuantity())
+                    .build());
         }
 
+        outcomePublisher.reserved(orderNumber, correlationId, reservedItems.stream()
+                .map(i -> InventoryReservedEvent.Item.builder()
+                        .skuCode(i.getSkuCode())
+                        .quantity(i.getQuantity())
+                        .build())
+                .toList());
+
         return ReservationResponse.builder()
-                .orderNumber(request.getOrderNumber())
+                .orderNumber(orderNumber)
                 .status("RESERVED")
                 .items(reservedItems)
                 .build();
@@ -94,6 +130,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         }
         List<InventoryReservation> reservations = reservationRepository.findByOrderNumber(orderNumber);
         if (reservations == null || reservations.isEmpty()) {
+            log.info("No reservation to release for order {}", orderNumber);
             return;
         }
         for (InventoryReservation reservation : reservations) {
@@ -107,6 +144,7 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             reservation.setStatus(ReservationStatus.RELEASED);
             reservation.setUpdatedAt(Instant.now());
             reservationRepository.save(reservation);
+            publishStockLevel(reservation.getSkuCode());
         }
     }
 
@@ -116,8 +154,10 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
         if (orderNumber == null || orderNumber.isBlank()) {
             throw new InventoryReservationException("orderNumber is required");
         }
-        List<InventoryReservation> reservations = reservationRepository.findByOrderNumberAndStatus(orderNumber, ReservationStatus.RESERVED);
+        List<InventoryReservation> reservations =
+                reservationRepository.findByOrderNumberAndStatus(orderNumber, ReservationStatus.RESERVED);
         if (reservations == null || reservations.isEmpty()) {
+            log.info("No reservation to confirm for order {}", orderNumber);
             return;
         }
         for (InventoryReservation reservation : reservations) {
@@ -128,6 +168,17 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             reservation.setStatus(ReservationStatus.CONFIRMED);
             reservation.setUpdatedAt(Instant.now());
             reservationRepository.save(reservation);
+            publishStockLevel(reservation.getSkuCode());
         }
+    }
+
+    private void publishStockLevel(String skuCode) {
+        inventoryRepository.findBySkuCode(skuCode).ifPresent(item ->
+                inventoryEventProducer.sendInventoryEvent(new InventoryEvent(
+                        null,
+                        item.getSkuCode(),
+                        "UPDATED",
+                        item.getQuantity() == null ? 0 : item.getQuantity(),
+                        Instant.now())));
     }
 }

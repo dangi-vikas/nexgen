@@ -1,9 +1,7 @@
 package com.nexgen.cart_service.controller;
 
 import com.nexgen.cart_service.dto.*;
-import com.nexgen.cart_service.entity.CartItem;
 import com.nexgen.cart_service.exception.InvalidQuantityException;
-import com.nexgen.cart_service.service.CartEventProducerService;
 import com.nexgen.cart_service.service.CartService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,7 +21,6 @@ import java.util.List;
 public class CartController {
 
     private final CartService cartService;
-    private final CartEventProducerService cartEventProducer;
 
     @Operation(summary = "Get current items in the cart")
     @GetMapping("/{userId}")
@@ -43,15 +40,6 @@ public class CartController {
     ) {
         requireOwner(userId, authentication);
         CartItemResponse item = cartService.addItemToCart(userId, itemRequest);
-
-        double priceD = 0.0;
-        if (item.getPrice() != null) {
-            priceD = item.getPrice().doubleValue();
-        }
-        cartEventProducer.sendAddToCartEvent(
-                new AddToCartEvent(userId, item.getProductId(), item.getQuantity(), priceD)
-        );
-
         return ResponseEntity.ok(ApiResponse.success(item, "Item added to cart"));
     }
 
@@ -70,11 +58,6 @@ public class CartController {
         }
 
         CartItemResponse item = cartService.removeItemQuantity(userId, productId, quantity);
-
-        cartEventProducer.sendRemoveFromCartEvent(
-                new RemoveFromCartEvent(userId, productId, quantity, "Item removed from cart")
-        );
-
         return ResponseEntity.ok(ApiResponse.success(item, "Item quantity removed from cart"));
     }
 
@@ -84,13 +67,6 @@ public class CartController {
             @PathVariable String userId, Authentication authentication) {
         requireOwner(userId, authentication);
         cartService.clearCart(userId);
-
-        List<CartItem> itemsCleared = cartService.getItemsByUserId(userId);
-        int totalQuantityCleared = itemsCleared == null ? 0 : itemsCleared.stream().mapToInt(CartItem::getQuantity).sum();
-
-        CartClearedEvent event = new CartClearedEvent(userId, totalQuantityCleared, "Cart cleared successfully.");
-        cartEventProducer.sendCartClearedEvent(event);
-
         return ResponseEntity.ok(ApiResponse.success(null, "Cart cleared successfully"));
     }
 
@@ -101,19 +77,10 @@ public class CartController {
             @Valid @RequestBody CheckoutRequest request, Authentication authentication,
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
         requireOwner(request.getUserId(), authentication);
+        // The cart is kept until order-confirmed arrives: checkout only means the
+        // order was accepted and is waiting for its stock reservation.
         CheckoutResponse response = cartService.checkout(request, authorizationHeader);
-        List<CartItem> items = cartService.getItemsByUserId(request.getUserId());
-
-        cartEventProducer.sendCheckoutEvent(
-                new CheckoutEvent(
-                        request.getUserId(),
-                        items.stream().map(CartItem::getProductId).collect(java.util.stream.Collectors.toList()),
-                        response.getTotalAmount() == null ? 0.0 : response.getTotalAmount().doubleValue(),
-                        "Checkout completed"
-                )
-        );
-
-        return ResponseEntity.ok(ApiResponse.success(response, "Checkout processed"));
+        return ResponseEntity.ok(ApiResponse.success(response, "Checkout accepted"));
     }
 
     private void requireOwner(String userId, Authentication authentication) {

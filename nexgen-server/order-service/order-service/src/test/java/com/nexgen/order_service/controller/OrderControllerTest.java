@@ -58,7 +58,7 @@ class OrderControllerTest {
                 List.of(new OrderItemResponse("ITEM001", 2, java.math.BigDecimal.valueOf(200.00), java.math.BigDecimal.valueOf(400.00)))
         );
 
-        when(orderService.createOrder(any(OrderRequest.class), eq("user123"), any())).thenReturn(orderResponse);
+        when(orderService.createOrder(any(OrderRequest.class), eq("user123"))).thenReturn(orderResponse);
 
         mockMvc.perform(post("/api/v1/orders")
                         .with(jwt().jwt(jwt -> jwt.subject("user123"))

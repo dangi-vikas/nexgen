@@ -1,42 +1,61 @@
 package com.nexgen.user_service.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.nexgen.user_service.dto.UserAccountEvent;
 import com.nexgen.user_service.dto.UserLoginEvent;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.kafka.core.KafkaTemplate;
 
 import java.time.Instant;
 
-import static org.mockito.ArgumentMatchers.contains;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class KafkaProducerServiceTest {
 
     @Mock
-    private KafkaTemplate<String, String> kafkaTemplate;
+    private OutboxService outboxService;
 
-    @Test
-    void registrationEventIsPublished() {
-        KafkaProducerService service = new KafkaProducerService(kafkaTemplate, new ObjectMapper());
+    private KafkaProducerService service;
 
-        service.sendUserRegistrationEvent("john");
-
-        verify(kafkaTemplate).send("user-registration", "New user registered: john");
+    @BeforeEach
+    void setUp() {
+        service = new KafkaProducerService(outboxService);
     }
 
     @Test
-    void loginEventIsSerializedAndPublished() {
-        ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
-        KafkaProducerService service = new KafkaProducerService(kafkaTemplate, objectMapper);
+    void registrationEventIsTypedJsonKeyedByUsername() {
+        String eventId = service.sendUserRegistrationEvent("john");
 
-        service.sendLoginEvent(new UserLoginEvent("john", "127.0.0.1", Instant.parse("2026-01-01T00:00:00Z")));
+        ArgumentCaptor<UserAccountEvent> payload = ArgumentCaptor.forClass(UserAccountEvent.class);
+        verify(outboxService).enqueue(eq(eventId), eq("USER"), eq("john"), eq("user-registration"),
+                eq("1.0"), eq("user-service"), isNull(), isNull(), payload.capture());
 
-        verify(kafkaTemplate).send(eq("user-login"), contains("\"username\":\"john\""));
+        assertEquals("user-registration", payload.getValue().getEventType());
+        assertEquals("john", payload.getValue().getUserId());
+        assertEquals(eventId, payload.getValue().getEventId());
+    }
+
+    @Test
+    void loginEventCarriesIpAddressAndEventId() {
+        String eventId = service.sendLoginEvent(UserLoginEvent.builder()
+                .username("john")
+                .ipAddress("127.0.0.1")
+                .loginTime(Instant.parse("2026-01-01T00:00:00Z"))
+                .build());
+
+        ArgumentCaptor<UserLoginEvent> payload = ArgumentCaptor.forClass(UserLoginEvent.class);
+        verify(outboxService).enqueue(eq(eventId), eq("USER"), eq("john"), eq("user-login"),
+                eq("1.0"), eq("user-service"), isNull(), isNull(), payload.capture());
+
+        assertEquals("127.0.0.1", payload.getValue().getIpAddress());
+        assertEquals("john", payload.getValue().getUserId());
+        assertEquals("user-login", payload.getValue().getEventType());
     }
 }
