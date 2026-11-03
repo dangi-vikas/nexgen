@@ -137,7 +137,11 @@ public class InventoryReservationServiceImpl implements InventoryReservationServ
             if (reservation.getStatus() == ReservationStatus.RELEASED) {
                 continue;
             }
-            int updated = inventoryRepository.release(reservation.getSkuCode(), reservation.getQuantity());
+            // A RESERVED row only holds stock aside; a CONFIRMED row already deducted
+            // it, so cancelling then has to put the stock back rather than un-reserve it.
+            int updated = reservation.getStatus() == ReservationStatus.CONFIRMED
+                    ? inventoryRepository.restock(reservation.getSkuCode(), reservation.getQuantity())
+                    : inventoryRepository.release(reservation.getSkuCode(), reservation.getQuantity());
             if (updated == 0) {
                 throw new InventoryReservationException("Unable to release reservation for order: " + orderNumber);
             }

@@ -22,4 +22,12 @@ public interface InventoryRepository extends JpaRepository<InventoryItem, Long> 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("update InventoryItem i set i.quantity = i.quantity - :qty, i.reservedQuantity = i.reservedQuantity - :qty, i.version = coalesce(i.version, 0) + 1 where i.skuCode = :skuCode and coalesce(i.reservedQuantity, 0) >= :qty and coalesce(i.quantity, 0) >= :qty")
     int confirm(@Param("skuCode") String skuCode, @Param("qty") int qty);
+
+    /**
+     * Puts stock back that a CONFIRMED reservation already deducted. Releasing it
+     * instead would decrement a reserved quantity the confirmation already consumed.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("update InventoryItem i set i.quantity = i.quantity + :qty, i.version = coalesce(i.version, 0) + 1 where i.skuCode = :skuCode")
+    int restock(@Param("skuCode") String skuCode, @Param("qty") int qty);
 }
