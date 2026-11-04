@@ -16,7 +16,7 @@
 | product-service | 8083 | `/actuator/health` | Resource server; product reads public, writes admin-only; health is public |
 | order-service | 8084 | `/actuator/health` | Resource server; owner/privileged order access; health is public |
 | cart-service | 8086 | `/actuator/health` | Resource server; self-only cart; health is public |
-| Kong proxy | 8000 | `/status` (if enabled) | Scripts broken; do not rely on it |
+| Kong proxy | 8000 | `/api/v1/products` | Routes registered by `kong-automation/setup-all.sh`; proxied request not yet verified live |
 | Kong admin | 8001 | `/` | **Unauthenticated, do not expose** |
 | SQL Server | 1433 | `SELECT 1` | `sa` only by default; databases not created |
 | Redis | 6379 | `PING` | No auth |
@@ -131,7 +131,7 @@ docker logs --tail 50 kafka
 docker logs --tail 50 kong
 ```
 
-> **Do not run `kong-automation/setup-all.sh` yet.** It references nonexistent files (`setup-user.sh` vs `setup-user-service.sh`) and applies a service-level JWT plugin that blocks login/register. Fix it in Batch 6.
+> `kong-automation/setup-all.sh` is idempotent and safe to re-run. It registers the five public services, their routes and the per-service CORS/rate-limit plugins, and it does **not** enable a gateway `jwt` plugin (the services validate tokens themselves). Run it after Kong is up and the services are listening on the host; verify with `curl -i http://localhost:8000/api/v1/products`.
 
 ---
 

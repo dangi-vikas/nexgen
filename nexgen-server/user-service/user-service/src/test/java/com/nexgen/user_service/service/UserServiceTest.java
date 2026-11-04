@@ -64,7 +64,7 @@ class UserServiceTest {
         verify(userRepository).save(captor.capture());
         assertEquals("ROLE_USER", captor.getValue().getRole());
         assertEquals("encoded-password", captor.getValue().getPassword());
-        verify(kafkaProducer).sendUserRegistrationEvent("john");
+        verify(kafkaProducer).sendUserRegistrationEvent("john", "john@example.com");
     }
 
     @Test

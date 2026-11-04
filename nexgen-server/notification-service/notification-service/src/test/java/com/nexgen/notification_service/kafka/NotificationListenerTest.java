@@ -3,6 +3,7 @@ package com.nexgen.notification_service.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexgen.notification_service.entity.Notification;
 import com.nexgen.notification_service.repository.NotificationRepository;
+import com.nexgen.notification_service.repository.UserContactRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,11 +25,14 @@ class NotificationListenerTest {
     @Mock
     private NotificationRepository notificationRepository;
 
+    @Mock
+    private UserContactRepository userContactRepository;
+
     private NotificationListener listener;
 
     @BeforeEach
     void setUp() {
-        listener = new NotificationListener(new ObjectMapper(), notificationRepository);
+        listener = new NotificationListener(new ObjectMapper(), notificationRepository, userContactRepository);
     }
 
     private ConsumerRecord<String, String> record(String topic, String json) {
@@ -50,6 +54,7 @@ class NotificationListenerTest {
         assertEquals("ORDER_RECEIVED", captor.getValue().getType());
         assertEquals("user1", captor.getValue().getUserId());
         assertEquals("ORD-1", captor.getValue().getOrderNumber());
+        assertEquals("PENDING", captor.getValue().getStatus());
         assertTrue(captor.getValue().getMessage().contains("ORD-1"));
     }
 

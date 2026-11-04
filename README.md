@@ -1,6 +1,6 @@
 # NexGen E-Commerce Microservices Platform
 
-NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Server, Redis, Kafka, and Docker. It has six independently buildable services. The commercial core (checkout, stock reservation, order confirmation, notifications) is **event-driven over Kafka**; payment authorization and the API gateway are still missing.
+NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Server, Redis, Kafka, and Docker. It has six independently buildable services. The commercial core (checkout, stock reservation, order confirmation, payment authorization, notifications) is **event-driven over Kafka**; the API gateway is wired by Kong but has not been rehearsed end to end.
 
 > **Project status (2026-10-29): NOT PRODUCTION READY.**
 > The authoritative assessment is [`docs/PRODUCTION_READINESS_AUDIT.md`](docs/PRODUCTION_READINESS_AUDIT.md). It documents remaining gaps (deployment hardening, E2E/Kong/runtime verification, integration tests with live infra).
@@ -24,13 +24,13 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 - **Cloud**: Microsoft Azure (Planned)
 - **Cache**: Redis
 - **Event Bus**: Apache Kafka (Confluent). The current Compose setup uses **PLAINTEXT**; SASL_SSL is not implemented.
-- **API Gateway**: Kong Gateway (automation scripts are currently broken; see audit C-08)
+- **API Gateway**: Kong Gateway, configured by the idempotent `kong-automation/setup-all.sh`. The scripts have been verified against a mock Admin API, not yet against a live Kong container.
 - **DevOps**: Docker Compose for infrastructure only; there are no application Dockerfiles or CI yet.
 - **Monitoring**: Spring Boot Actuator in four services; Prometheus/Grafana coverage is partial.
 - **Observability**: File-based logging; Loki/Promtail cover only cart-service and Kong.
 - **Resilience**: Spring Cloud Resilience4j in cart-service only; not a system-wide guarantee.
 - **Documentation**: Swagger/OpenAPI (security schemes are currently configured only for user-service).
-- **Orchestration Pattern**: Choreographed saga over Kafka (order → inventory → order → cart/notification); payment is not part of it yet.
+- **Orchestration Pattern**: Choreographed saga over Kafka (order → inventory → order → payment → order → cart/notification).
 
 ---
 
@@ -75,7 +75,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 ### 5. **Order Service**
 - **Features**: Create, retrieve, cancel, and update orders; order status history
 - **Events**: Publishes one `order-created` per order from the outbox, then `order-confirmed` / `order-cancelled` / `order-status-updated`; consumes `inventory-reserved` and `inventory-rejected` to drive the status transition
-- **Payment**: **Not implemented**; there is no payment provider integration
+- **Payment**: `payment-service` consumes `order-confirmed` and publishes `payment-authorized` / `payment-failed`; the gateway is a `PaymentGateway` port whose default implementation is a deterministic **simulator** (no money, no credentials). Declines total amounts ending in `.99`. Swapping in a real PSP means one more implementation of that port.
 - **Failure Handling**: `inventory-rejected` cancels the order with the rejection reason and publishes `order-cancelled`, which makes inventory release whatever it had reserved
 - **Resilience**: Stock is no longer reserved over HTTP; the only synchronous call left is the product-price lookup when an order is created
 - **Security**: Resource server (Batch 2). Creation derives `userId` from the access token; reads/cancel/history are owner-only unless the caller has `ROLE_ADMIN`/`ROLE_INTERNAL`; status updates require `ROLE_ADMIN`/`ROLE_INTERNAL`
@@ -91,7 +91,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 
 ## ⚙️ Architecture
 
-The Kafka paths below are implemented. Kong automation is still non-functional, and cross-service runtime behaviour has not been verified because the infrastructure was not started.
+The Kafka paths below are implemented. Kong routing is declared by `kong-automation/setup-all.sh`, and cross-service runtime behaviour has not been verified because the infrastructure was not started.
 
 ```
                +--------------------------+
@@ -128,7 +128,7 @@ Database: MS SQL Server (Per service)
 * **No admin provisioning exists yet.** Registration always assigns `ROLE_USER`, so admin/internal tokens must currently be minted out of band for testing. Do not add a public admin-registration path without a separate audited design.
 * **Swagger/OpenAPI, `/actuator/health`, `/actuator/info`, and `/error` remain public** in the four resource-server services. Swagger must be disabled or protected before production.
 * **Kafka is PLAINTEXT** and Redis has no authentication in the provided Compose setup; SQL Server falls back to `sa` if `DB_USERNAME` is omitted. These are infrastructure findings, not solved by Batch 2.
-* **Kong is not integrated.** The setup scripts reference missing files and are not part of the tested startup path.
+* **Kong is not part of the tested startup path.** `kong-automation/setup-all.sh` is idempotent and self-configuring (defaults for every port/URL, no `.env` required), but it has only been exercised against a mock Admin API; a live proxied request has not been verified.
 * `JWT_SECRET` must be at least 32 bytes and identical across all services. It is validated at startup; do not ship the example value.
 * CORS is an explicit allowlist per service via `CORS_ALLOWED_ORIGINS`; wildcard origins are not used.
 
@@ -157,7 +157,7 @@ Checkout is a choreographed saga over Kafka:
 * Inventory Service consumes it, reserves stock atomically and publishes `inventory-reserved`, or publishes `inventory-rejected` with the reason.
 * Order Service consumes that answer: `inventory-reserved` → `CONFIRMED` + `order-confirmed`; `inventory-rejected` → `CANCELLED` + `order-cancelled`.
 * Inventory consumes `order-confirmed` to deduct stock and `order-cancelled` to release it; cart consumes `order-confirmed` to clear itself; notification-service notifies the customer at every step.
-* Compensation is the rejection path: the order is cancelled and `order-cancelled` releases any partial reservation. A payment step does not exist yet, so `paymentStatus` is reported as `NOT_IMPLEMENTED`.
+* Compensation is the rejection path: a declined payment cancels the order (`payment-failed` → `order-cancelled`) and `order-cancelled` releases any partial reservation and refunds. `paymentStatus` moves `PENDING` → `AUTHORIZED` → (`REFUNDED`).
 
 Every step is idempotent: events carry an `eventId` that consumers record in `processed_events`, reservations are keyed by order number, and status changes to an already-applied status are no-ops.
 
@@ -171,7 +171,7 @@ Every step is idempotent: events carry an `eventId` that consumers record in `pr
 
 ### Current local setup
 
-The repository does **not** contain a one-command working stack. The Compose file starts infrastructure containers only; there are no application Dockerfiles. Kong automation is currently broken. Use [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) and [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) for the verified, step-by-step procedure.
+The repository does **not** contain a one-command working stack. The Compose file starts infrastructure containers only; there are no application Dockerfiles. Kong routing is wired by `kong-automation/setup-all.sh` but unrehearsed against a live gateway. Use [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) and [`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md) for the verified, step-by-step procedure.
 
 Typical outline:
 
@@ -219,11 +219,10 @@ cd nexgen-server/<service>/<service>
 
 **Not implemented / partial**
 - Admin/internal account provisioning and audited admin flows
-- Server-side pricing, stock reservation, and real payment processing during checkout
-- Payment authorization (there is no payment service or provider, so checkout stops at `CONFIRMED`)
+- A real payment provider (the simulator charges nothing; a live PSP also costs money)
 - Database migrations or initialization scripts
 - Dockerfiles, CI, or a working Kong setup
-- An API gateway that is actually wired (Kong automation remains broken)
+- An API gateway that has been rehearsed against a live Kong (the automation is fixed and idempotent, but not exercised end to end)
 - Production observability (only partial Actuator/Prometheus coverage)
 - Docker/Testcontainers integration and E2E tests (context tests are currently skipped)
 
@@ -240,7 +239,7 @@ The prioritized plan is in [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATIO
 - [ ] Add Dockerfiles, CI, and a tested Kong configuration
 - [ ] Add Actuator, dashboards, and actionable alerts
 - [ ] Add integration/E2E tests with Testcontainers
-- [x] Implement the event-driven checkout saga and the notification consumer; payment is still missing
+- [x] Implement the event-driven checkout saga, the payment consumer and the notification consumer
 
 ---
 
@@ -267,7 +266,7 @@ nexgen/
 │   ├── cart-service/cart-service/
 │   ├── notification-service/notification-service/
 │   └── order-service/order-service/
-├── kong-automation/          # currently non-functional setup scripts
+├── kong-automation/          # idempotent gateway setup scripts
 ├── prometheus/               # Prometheus config
 ├── loki/                     # Loki config
 ├── promtail-config.yaml
@@ -277,7 +276,7 @@ nexgen/
 └── .env.example              # configuration template (no real secrets)
 ```
 
-There is no application `api-gateway/` source directory yet; `kong-automation/` does not currently produce a working gateway.
+There is no application `api-gateway/` source directory; the gateway is Kong, declared by the scripts in `kong-automation/`.
 
 ---
 

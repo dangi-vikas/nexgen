@@ -1,18 +1,22 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Removes the gateway objects created by setup-all.sh. Safe to run when nothing exists.
+# No jq dependency: global plugins are tagged "nexgen-gateway" and their ids are
+# extracted from the compact Admin API JSON.
+set -euo pipefail
+# shellcheck source=../utils/load-env.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../utils/load-env.sh"
+# shellcheck source=../utils/kong.sh
+. "$KONG_DIR/utils/kong.sh"
 
-source "$(dirname "$0")/../utils/load-env.sh"
+echo "Removing gateway configuration from ${KONG_ADMIN_URL}"
 
-echo "Cleaning setup for all services..."
-
-# Delete services
-for service in user-service cart-service order-service product-service inventory-service; do
-  curl -s -X DELETE $KONG_URL/services/$service
+for name in "$USER_SERVICE_NAME" "$PRODUCT_SERVICE_NAME" "$CART_SERVICE_NAME" \
+  "$ORDER_SERVICE_NAME" "$INVENTORY_SERVICE_NAME"; do
+  kong_delete "/services/${name}"
 done
 
-# Delete all consumers
-consumers=$(curl -s $KONG_URL/consumers | jq -r '.data[].id')
-for id in $consumers; do
-  curl -s -X DELETE $KONG_URL/consumers/$id
+for id in $(kong_get "/plugins?tags=nexgen-gateway" | grep -o '"id":"[^"]*"' | cut -d'"' -f4); do
+  kong_delete "/plugins/${id}"
 done
 
-echo "All services cleaned."
+echo "Gateway configuration removed."

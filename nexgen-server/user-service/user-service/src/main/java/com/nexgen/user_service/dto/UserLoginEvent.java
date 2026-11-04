@@ -22,6 +22,8 @@ public class UserLoginEvent {
 
     private String username;
 
+    private String email;
+
     private String ipAddress;
 
     private Instant loginTime;

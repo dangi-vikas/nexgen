@@ -24,6 +24,15 @@ spring:
     baseline-on-migrate: true
     locations: classpath:db/migration
 
+  # Mailpit runs locally in docker-compose and captures everything at :8025.
+  # Point these at any SMTP relay in production; no paid API is required.
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:false}
+
   kafka:
     bootstrap-servers: ${KAFKA_HOST:localhost}:${KAFKA_PORT:9092}
     consumer:
@@ -32,6 +41,13 @@ spring:
       # Events are consumed as raw JSON and parsed into each listener's DTO.
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+notifications:
+  from: ${NOTIFICATIONS_FROM:no-reply@nexgen.local}
+  delivery:
+    enabled: ${NOTIFICATIONS_DELIVERY_ENABLED:true}
+    delay: 5000
+    max-attempts: 5
 
 topic:
   order-created: order-created

@@ -91,6 +91,10 @@ services:
     ports:
       - "${KONG_PROXY_PORT}:8000"
       - "${KONG_ADMIN_PORT}:8001"
+    # The Spring services run on the host, so the gateway must be able to reach it by
+    # name (kong-automation defaults KONG_SERVICE_HOST to host.docker.internal).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./logs/kong-gateway-service:/var/log/kong
 

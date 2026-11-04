@@ -41,7 +41,7 @@ public class UserService {
                 .build();
 
         User savedUser = userRepository.save(user);
-        kafkaProducer.sendUserRegistrationEvent(savedUser.getUsername());
+        kafkaProducer.sendUserRegistrationEvent(savedUser.getUsername(), savedUser.getEmail());
         return toProfile(savedUser);
     }
 
@@ -52,7 +52,7 @@ public class UserService {
 
         user.setEmail(request.getEmail().trim());
         userRepository.save(user);
-        kafkaProducer.sendProfileUpdatedEvent(username);
+        kafkaProducer.sendProfileUpdatedEvent(username, user.getEmail());
     }
 
     @Transactional

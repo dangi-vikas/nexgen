@@ -1,0 +1,4 @@
+# Shell scripts must keep LF endings: a CRLF checkout makes the shebang unparseable
+# and every script fails with "bad interpreter", which is how kong-automation was
+# previously broken. Scoped to *.sh so no other file is renormalized.
+*.sh text eol=lf

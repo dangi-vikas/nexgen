@@ -223,15 +223,29 @@ curl.exe -s -o NUL -w "%{http_code}" http://localhost:8082/api/v1/inventory
 
 See `docs/OPERATIONS_RUNBOOK.md` §6 for a token-based smoke sequence and expected 401/403 behavior.
 
-### Step 5 — Kong (do not rely on it)
+### Step 5 — Kong
 
-`kong-automation/setup-all.sh` is **broken**:
-- It calls `setup-user.sh`, `setup-cart.sh`, etc.; the actual files are `setup-user-service.sh`, etc.
-- It applies the Kong `jwt` plugin to the whole service, including login/register.
-- Kong JWT credentials are not the application's JWTs.
-- CORS is `*` with credentials.
+With the five services running on the host and Kong up (`docker compose up -d kong-db kong-migrations kong`):
 
-Do not expose Kong publicly. Kong integration is Batch 6.
+```bash
+./kong-automation/setup-all.sh     # idempotent; re-run after every restart
+```
+
+This registers each service (upstream `host.docker.internal:<port>`), its route
+(`/api/v1/users`, `/products`, `/cart`, `/orders`, `/inventory`), a per-service CORS
+plugin for a single explicit origin, and a per-service rate limit. It expects no
+`.env`; every value has a working default and can be overridden (`KONG_ADMIN_URL`,
+`KONG_SERVICE_HOST`, `WEB_ORIGIN`, `*_SERVICE_PORT`, `*_RATE_LIMIT`).
+
+What changed from the previously broken version: script names match the files on disk,
+the scripts are LF (see `.gitattributes`), they no longer apply a gateway `jwt` plugin
+(the services validate tokens themselves, and the old consumers never had matching
+credentials), CORS uses one explicit origin instead of `*` with credentials, and every
+call is a `PUT` keyed by name, so a second run does not fail with 409.
+
+The scripts have been exercised against a mock Admin API (setup twice + teardown), not
+yet against a live Kong container in this environment — verify once with
+`curl -i http://localhost:8000/api/v1/products` before relying on the gateway.
 
 ---
 

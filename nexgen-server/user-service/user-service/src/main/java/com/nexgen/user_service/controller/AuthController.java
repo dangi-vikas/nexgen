@@ -59,6 +59,7 @@ public class AuthController {
         redisService.saveRefreshToken(user.getUsername(), refreshToken);
         kafkaProducerService.sendLoginEvent(UserLoginEvent.builder()
                 .username(request.getUsername())
+                .email(user instanceof User entity ? entity.getEmail() : null)
                 .ipAddress(servletRequest.getRemoteAddr())
                 .loginTime(Instant.now())
                 .build());

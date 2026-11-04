@@ -29,16 +29,16 @@ public class KafkaProducerService {
 
     private final OutboxService outboxService;
 
-    public String sendUserRegistrationEvent(String username) {
-        return enqueueAccountEvent(USER_REGISTRATION, username);
+    public String sendUserRegistrationEvent(String username, String email) {
+        return enqueueAccountEvent(USER_REGISTRATION, username, email);
     }
 
-    public String sendProfileUpdatedEvent(String username) {
-        return enqueueAccountEvent(USER_PROFILE_UPDATED, username);
+    public String sendProfileUpdatedEvent(String username, String email) {
+        return enqueueAccountEvent(USER_PROFILE_UPDATED, username, email);
     }
 
     public String sendPasswordChangedEvent(String username) {
-        return enqueueAccountEvent(USER_PASSWORD_CHANGED, username);
+        return enqueueAccountEvent(USER_PASSWORD_CHANGED, username, null);
     }
 
     public String sendLoginEvent(UserLoginEvent event) {
@@ -53,13 +53,14 @@ public class KafkaProducerService {
                 "user-service", null, null, event);
     }
 
-    private String enqueueAccountEvent(String eventType, String username) {
+    private String enqueueAccountEvent(String eventType, String username, String email) {
         String eventId = UUID.randomUUID().toString();
         UserAccountEvent event = UserAccountEvent.builder()
                 .eventId(eventId)
                 .eventType(eventType)
                 .userId(username)
                 .username(username)
+                .email(email)
                 .occurredAt(Instant.now())
                 .build();
         log.info("Enqueuing {} event {} for user {}", eventType, eventId, username);

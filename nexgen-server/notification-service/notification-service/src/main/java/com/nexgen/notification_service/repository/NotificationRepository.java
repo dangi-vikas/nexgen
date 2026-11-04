@@ -9,5 +9,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
 
     boolean existsByEventId(String eventId);
 
+    List<Notification> findTop50ByStatusOrderByCreatedAtAsc(String status);
+
     List<Notification> findByUserIdOrderByCreatedAtDesc(String userId);
 }

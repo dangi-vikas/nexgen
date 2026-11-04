@@ -31,7 +31,7 @@ public class Notification {
     @Column(name = "order_number", length = 100)
     private String orderNumber;
 
-    /** ORDER_RECEIVED, ORDER_CONFIRMED, ORDER_CANCELLED, WELCOME, LOGIN, PROFILE_UPDATED, PASSWORD_CHANGED. */
+    /** ORDER_RECEIVED, ORDER_CONFIRMED, ... — also the template selector. */
     @Column(nullable = false, length = 50)
     private String type;
 
@@ -40,6 +40,24 @@ public class Notification {
 
     @Column(length = 1000)
     private String message;
+
+    @Column(length = 255)
+    private String recipient;
+
+    @Column(nullable = false, length = 20)
+    private String status;
+
+    @Column(nullable = false)
+    private int attempts;
+
+    @Column(name = "sent_at")
+    private Instant sentAt;
+
+    @Column(name = "provider_message_id", length = 200)
+    private String providerMessageId;
+
+    @Column(name = "last_error", length = 500)
+    private String lastError;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

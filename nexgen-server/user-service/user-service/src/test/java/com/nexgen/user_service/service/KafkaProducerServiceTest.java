@@ -38,7 +38,7 @@ class KafkaProducerServiceTest {
 
     @Test
     void registrationEventIsTypedJsonKeyedByUsername() {
-        String eventId = service.sendUserRegistrationEvent("john");
+        String eventId = service.sendUserRegistrationEvent("john", "john@example.com");
 
         ArgumentCaptor<UserAccountEvent> payload = ArgumentCaptor.forClass(UserAccountEvent.class);
         verify(outboxService).enqueue(eq(eventId), eq("USER"), eq("john"), eq("user-registration"),
@@ -46,6 +46,7 @@ class KafkaProducerServiceTest {
 
         assertEquals("user-registration", payload.getValue().getEventType());
         assertEquals("john", payload.getValue().getUserId());
+        assertEquals("john@example.com", payload.getValue().getEmail());
         assertEquals(eventId, payload.getValue().getEventId());
     }
 

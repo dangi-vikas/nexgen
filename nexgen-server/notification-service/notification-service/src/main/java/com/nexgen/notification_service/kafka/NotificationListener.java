@@ -6,7 +6,9 @@ import com.nexgen.notification_service.dto.OrderCreatedEvent;
 import com.nexgen.notification_service.dto.OrderLifecycleEvent;
 import com.nexgen.notification_service.dto.UserAccountEvent;
 import com.nexgen.notification_service.entity.Notification;
+import com.nexgen.notification_service.entity.UserContact;
 import com.nexgen.notification_service.repository.NotificationRepository;
+import com.nexgen.notification_service.repository.UserContactRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -19,9 +21,10 @@ import java.time.Instant;
  * The customer-facing end of the event flows.
  *
  * <p>Every notification is keyed by the {@code eventId} of the event that caused it,
- * so a redelivered event cannot send the customer the same message twice. Delivery
- * (email/SMS/push) is deliberately left to a later integration; this service records
- * what would be delivered, which is what makes the consumer verifiable.
+ * so a redelivered event cannot send the customer the same message twice. Rows are
+ * written as PENDING and actually delivered by
+ * {@link com.nexgen.notification_service.service.NotificationDeliveryJob}, which
+ * turns the table into a delivery outbox.
  */
 @Component
 @Slf4j
@@ -30,6 +33,7 @@ public class NotificationListener {
 
     private final ObjectMapper objectMapper;
     private final NotificationRepository notificationRepository;
+    private final UserContactRepository userContactRepository;
 
     @KafkaListener(topics = "${topic.order-created}", groupId = "notification-service")
     public void onOrderCreated(ConsumerRecord<String, String> record) {
@@ -67,17 +71,6 @@ public class NotificationListener {
                 "Order " + event.getOrderNumber() + " has been cancelled." + reason);
     }
 
-    @KafkaListener(topics = "${topic.cart-checkout}", groupId = "notification-service")
-    public void onCheckoutAccepted(ConsumerRecord<String, String> record) {
-        CheckoutEvent event = read(record, CheckoutEvent.class);
-        if (event == null) {
-            return;
-        }
-        record(event.getEventId(), "CHECKOUT_ACCEPTED", event.getUserId(), event.getOrderNumber(),
-                "Checkout accepted",
-                "We are confirming availability for order " + event.getOrderNumber() + ".");
-    }
-
     @KafkaListener(topics = "${topic.order-status-updated}", groupId = "notification-service")
     public void onOrderStatusUpdated(ConsumerRecord<String, String> record) {
         OrderLifecycleEvent event = read(record, OrderLifecycleEvent.class);
@@ -90,12 +83,24 @@ public class NotificationListener {
                 "Order " + event.getOrderNumber() + " is now " + status + ".");
     }
 
+    @KafkaListener(topics = "${topic.cart-checkout}", groupId = "notification-service")
+    public void onCheckoutAccepted(ConsumerRecord<String, String> record) {
+        CheckoutEvent event = read(record, CheckoutEvent.class);
+        if (event == null) {
+            return;
+        }
+        record(event.getEventId(), "CHECKOUT_ACCEPTED", event.getUserId(), event.getOrderNumber(),
+                "Checkout accepted",
+                "We are confirming availability for order " + event.getOrderNumber() + ".");
+    }
+
     @KafkaListener(topics = "${topic.user-registration}", groupId = "notification-service")
     public void onUserRegistered(ConsumerRecord<String, String> record) {
         UserAccountEvent event = read(record, UserAccountEvent.class);
         if (event == null) {
             return;
         }
+        upsertContact(event.getUserId(), event.getUsername(), event.getEmail());
         record(event.getEventId(), "WELCOME", event.getUserId(), null,
                 "Welcome to NexGen",
                 "Welcome, " + event.getUsername() + "! Your account is ready.");
@@ -119,6 +124,7 @@ public class NotificationListener {
         if (event == null) {
             return;
         }
+        upsertContact(event.getUserId(), event.getUsername(), event.getEmail());
         record(event.getEventId(), "PROFILE_UPDATED", event.getUserId(), null,
                 "Profile updated",
                 "Your profile details were updated.");
@@ -135,6 +141,20 @@ public class NotificationListener {
                 "Your password was changed. If this was not you, contact support immediately.");
     }
 
+    private void upsertContact(String userId, String username, String email) {
+        if (userId == null || email == null || email.isBlank()) {
+            return;
+        }
+        UserContact contact = userContactRepository.findById(userId)
+                .orElseGet(() -> UserContact.builder().userId(userId).build());
+        if (!email.equals(contact.getEmail())) {
+            contact.setEmail(email);
+            contact.setUpdatedAt(Instant.now());
+            userContactRepository.save(contact);
+            log.info("Recorded contact address for user {} ({})", userId, email);
+        }
+    }
+
     private void record(String eventId, String type, String userId, String orderNumber,
                         String subject, String message) {
         if (eventId == null || eventId.isBlank()) {
@@ -145,6 +165,8 @@ public class NotificationListener {
             log.debug("Notification for event {} already recorded", eventId);
             return;
         }
+        String recipient = userId == null ? null
+                : userContactRepository.findById(userId).map(UserContact::getEmail).orElse(null);
         notificationRepository.save(Notification.builder()
                 .eventId(eventId)
                 .userId(userId)
@@ -152,9 +174,13 @@ public class NotificationListener {
                 .type(type)
                 .subject(subject)
                 .message(message)
+                .recipient(recipient)
+                .status("PENDING")
+                .attempts(0)
                 .createdAt(Instant.now())
                 .build());
-        log.info("NOTIFY {} ({}): {} [event {}]", type, userId, subject, eventId);
+        log.info("Queued {} notification for {} (recipient {})", type, userId == null ? "unknown" : userId,
+                recipient == null ? "none yet" : recipient);
     }
 
     private <T> T read(ConsumerRecord<String, String> record, Class<T> type) {

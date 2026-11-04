@@ -247,7 +247,7 @@ nexgen/
 ├── prometheus/prometheus.yml     # scrapes order + cart only
 ├── loki/loki-config.yaml
 ├── promtail-config.yaml          # watches cart + Kong only
-├── kong-automation/              # shell scripts; broken entrypoint
+├── kong-automation/              # idempotent Kong Admin API setup scripts
 ├── nexgen-server/
 │   ├── user-service/user-service/
 │   ├── inventory-service/inventory-service/

@@ -22,5 +22,8 @@ public class UserAccountEvent {
 
     private String username;
 
+    /** Present on registration, profile updates and logins; used as the send-to address. */
+    private String email;
+
     private String ipAddress;
 }
