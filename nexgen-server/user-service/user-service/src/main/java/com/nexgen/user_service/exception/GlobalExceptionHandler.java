@@ -42,6 +42,11 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(ex.getMessage(), "INVALID_PASSWORD", HttpStatus.BAD_REQUEST);
     }
 
+    @ExceptionHandler(InvalidRoleChangeException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRoleChange(InvalidRoleChangeException ex) {
+        return buildErrorResponse(ex.getMessage(), "INVALID_ROLE_CHANGE", HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex) {
         return buildErrorResponse(ex.getMessage(), "RESOURCE_NOT_FOUND", HttpStatus.NOT_FOUND);

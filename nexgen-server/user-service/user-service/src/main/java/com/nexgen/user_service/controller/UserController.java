@@ -1,6 +1,7 @@
 package com.nexgen.user_service.controller;
 
 import com.nexgen.user_service.dto.ChangePasswordRequest;
+import com.nexgen.user_service.dto.RoleUpdateRequest;
 import com.nexgen.user_service.dto.UpdateProfileRequest;
 import com.nexgen.user_service.dto.UserProfileResponse;
 import com.nexgen.user_service.dto.UserRegistrationRequest;
@@ -42,6 +43,20 @@ public class UserController {
                                                   Principal principal) {
         userService.changeUserPassword(principal.getName(), request);
         return ResponseEntity.ok("Password changed successfully");
+    }
+
+    /**
+     * Administrators promote or demote other accounts. Self-service is impossible by
+     * design: registration always assigns ROLE_USER and this endpoint rejects the
+     * caller's own username.
+     */
+    @PatchMapping("/{username}/role")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<UserProfileResponse> changeUserRole(@PathVariable String username,
+                                                              @Valid @RequestBody RoleUpdateRequest request,
+                                                              Principal principal) {
+        return ResponseEntity.ok(
+                userService.changeUserRole(username, request.getRole(), principal.getName()));
     }
 
     @PreAuthorize("hasAnyRole('USER','ADMIN')")

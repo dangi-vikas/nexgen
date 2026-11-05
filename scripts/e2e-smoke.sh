@@ -89,13 +89,42 @@ TOKEN=$(curl -s -X POST "$USER_API/api/v1/users/login" -H 'Content-Type: applica
   -d "$login_body" | json_get accessToken)
 if [ -n "$TOKEN" ]; then ok "login issued an access token"; else bad "login did not return accessToken"; fi
 
-# Registration always assigns ROLE_USER; promote through SQL to obtain an admin token.
-docker exec mssql /opt/mssql-tools18/bin/sqlcmd -S localhost -U "$DB_USERNAME" -P "$DB_PASSWORD" \
-  -d "${USER_DB_NAME:-userdb}" -C -b -Q \
-  "UPDATE users SET role='ROLE_ADMIN' WHERE username='${USERNAME}'" >/dev/null 2>&1
+# Registration always assigns ROLE_USER. The bootstrap administrator promotes the test
+# account through the API, which is the only supported provisioning path.
+ADMIN_USER="${BOOTSTRAP_ADMIN_USERNAME:-}"
+ADMIN_PASS="${BOOTSTRAP_ADMIN_PASSWORD:-}"
+if [ -z "$ADMIN_USER" ] || [ -z "$ADMIN_PASS" ]; then
+  bad "BOOTSTRAP_ADMIN_USERNAME/BOOTSTRAP_ADMIN_PASSWORD are not set, cannot provision an admin"
+  BOOTSTRAP_TOKEN=""
+else
+  BOOTSTRAP_TOKEN=$(curl -s -X POST "$USER_API/api/v1/users/login" -H 'Content-Type: application/json' \
+    -d "{\"username\":\"${ADMIN_USER}\",\"password\":\"${ADMIN_PASS}\"}" | json_get accessToken)
+  if [ -n "$BOOTSTRAP_TOKEN" ]; then ok "bootstrap admin can sign in"; else bad "bootstrap admin login failed"; fi
+fi
+
+# A normal user must not be able to grant itself a role.
+code=$(curl -s -o $TMP_DIR/escalate.json -w '%{http_code}' -X PATCH "$USER_API/api/v1/users/${USERNAME}/role" \
+  -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' -d '{"role":"ROLE_ADMIN"}')
+expect_eq "non-admin cannot change roles" "403" "$code"
+
+# An admin also cannot change its own role (that would be an unrecoverable lockout).
+if [ -n "$BOOTSTRAP_TOKEN" ]; then
+  code=$(curl -s -o $TMP_DIR/self-demote.json -w '%{http_code}' \
+    -X PATCH "$USER_API/api/v1/users/${ADMIN_USER}/role" \
+    -H "Authorization: Bearer ${BOOTSTRAP_TOKEN}" -H 'Content-Type: application/json' -d '{"role":"ROLE_USER"}')
+  expect_eq "admin cannot change its own role" "400" "$code"
+fi
+
+code=$(curl -s -o $TMP_DIR/promote.json -w '%{http_code}' -X PATCH "$USER_API/api/v1/users/${USERNAME}/role" \
+  -H "Authorization: Bearer ${BOOTSTRAP_TOKEN:-none}" -H 'Content-Type: application/json' -d '{"role":"ROLE_ADMIN"}')
+case "$code" in
+  200) ok "admin promoted ${USERNAME} through the API ($code)" ;;
+  *) bad "admin promotion returned $code: $(cat $TMP_DIR/promote.json)" ;;
+esac
+
 ADMIN_TOKEN=$(curl -s -X POST "$USER_API/api/v1/users/login" -H 'Content-Type: application/json' \
   -d "$login_body" | json_get accessToken)
-if [ -n "$ADMIN_TOKEN" ]; then ok "admin token issued after role promotion"; else bad "could not obtain admin token"; fi
+if [ -n "$ADMIN_TOKEN" ]; then ok "promoted user now receives an admin token"; else bad "could not obtain admin token"; fi
 
 # ---------------------------------------------------------------- catalogue
 info "2. Catalogue and stock (product-service, inventory-service)"

@@ -7,18 +7,26 @@ import com.nexgen.user_service.dto.UserRegistrationRequest;
 import com.nexgen.user_service.entity.User;
 import com.nexgen.user_service.exception.DuplicateUserException;
 import com.nexgen.user_service.exception.InvalidPasswordException;
+import com.nexgen.user_service.exception.InvalidRoleChangeException;
 import com.nexgen.user_service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
 
     private static final String DEFAULT_ROLE = "ROLE_USER";
+
+    /** Roles an administrator may assign; nothing else can be written to the column. */
+    private static final Set<String> ASSIGNABLE_ROLES = Set.of("ROLE_USER", "ROLE_ADMIN");
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -73,6 +81,38 @@ public class UserService {
         // A password change invalidates every refresh session for this user.
         redisService.deleteRefreshToken(username);
         kafkaProducer.sendPasswordChangedEvent(username);
+    }
+
+    /**
+     * Promotes or demotes another user. Only administrators can reach this method, and
+     * their own role is off limits so one account cannot lock the system out.
+     */
+    @Transactional
+    public UserProfileResponse changeUserRole(String targetUsername, String role, String actor) {
+        if (!ASSIGNABLE_ROLES.contains(role)) {
+            throw new InvalidRoleChangeException("Unsupported role: " + role);
+        }
+
+        User user = userRepository.findByUsername(targetUsername)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        if (user.getUsername().equals(actor)) {
+            throw new InvalidRoleChangeException("Administrators cannot change their own role");
+        }
+
+        String previous = user.getRole();
+        if (role.equals(previous)) {
+            return toProfile(user);
+        }
+
+        user.setRole(role);
+        userRepository.save(user);
+
+        // Refresh tokens were minted with the old role, so they must not be reusable.
+        redisService.deleteRefreshToken(user.getUsername());
+
+        log.info("Role changed by {}: user={} {} -> {}", actor, user.getUsername(), previous, role);
+        return toProfile(user);
     }
 
     /**

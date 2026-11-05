@@ -3,7 +3,7 @@
 NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Server, Redis, Kafka, Kong and Docker. It has **seven** independently buildable services. The commercial core (checkout, stock reservation, order confirmation, payment authorisation, notification) is **event-driven over Kafka**.
 
 > **Project status (2026-11-06): verified end to end, still not production ready.**
-> The whole checkout saga, the gateway and the notification pipeline were exercised against live Docker infrastructure: `scripts/e2e-smoke.sh` passes **31/31 checks**. Production gaps that remain are listed under [Known limitations](#-known-limitations).
+> The whole checkout saga, the gateway and the notification pipeline were exercised against live Docker infrastructure: `scripts/e2e-smoke.sh` passes **35/35 checks**. Production gaps that remain are listed under [Known limitations](#-known-limitations).
 >
 > The authoritative readiness assessment is [`docs/PRODUCTION_READINESS_AUDIT.md`](docs/PRODUCTION_READINESS_AUDIT.md).
 
@@ -35,7 +35,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 - **Payments**: in-process simulator behind a `PaymentGateway` port
 - **Observability**: Spring Boot Actuator and Micrometer in all seven services; Prometheus/Grafana coverage is partial
 - **Resilience**: Resilience4j in cart-service; every service uses a transactional outbox with an at-least-once publisher
-- **DevOps**: Docker Compose for infrastructure; no application Dockerfiles or CI yet
+- **DevOps**: Docker Compose for infrastructure, a multi-stage Dockerfile per service, and GitHub Actions CI that tests every module and runs the E2E suite
 
 ## 🧩 Services at a glance
 
@@ -116,12 +116,12 @@ Every service has its own SQL Server database (`userdb`, `productdb`, `inventory
 
 ## ✅ Verification status (2026-11-06)
 
-`./scripts/e2e-smoke.sh` runs the full stack for real and exits non-zero on failure. Last run: **31 passes, 0 failures**.
+`./scripts/e2e-smoke.sh` runs the full stack for real and exits non-zero on failure. Last run: **35 passes, 0 failures**.
 
 | Section | What is proved |
 | --- | --- |
 | 0. Readiness | all seven `/actuator/health` endpoints answer `200` |
-| 1. Identity | registration, login token, admin promotion then a privileged token |
+| 1. Identity | registration, login token, bootstrap admin sign-in, promotion through the API, and both escalation attempts refused |
 | 2. Catalogue/stock | admin creates a product and stocks it through the services |
 | 3. Authorisation | anonymous write `401`, `ROLE_USER` write `403`, foreign cart `401` |
 | 4. Cart | add through Redis-backed cart, quantity read back |
@@ -130,7 +130,7 @@ Every service has its own SQL Server database (`userdb`, `productdb`, `inventory
 | 7. Gateway | product read through Kong, authorized order read through Kong, anonymous order read `401`, `X-Correlation-Id` echoed, CORS allows the configured origin and never reflects another |
 | 8. Compensation | a `.99` total is declined, order becomes `CANCELLED`, reservation released (5 units back) |
 
-The suite needs `bash`, `curl`, `node` (for JSON without `jq`) and the running `mssql` container (it promotes a user to admin with `sqlcmd`).
+The suite needs `bash`, `curl`, `node` (for JSON without `jq`) and the running services plus infrastructure. Admin provisioning goes through the API using `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD`, so it no longer touches SQL Server directly.
 
 ## 🚀 Getting Started
 
@@ -182,7 +182,25 @@ java -jar target/<artifact>.jar     # jar names: user-service-1.0.0.jar, everyth
 
 Each service reads `DB_NAME` for its own database. See the per-service pages under [`docs/services/`](docs/services/) and [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full variable list.
 
-### 5. Configure the gateway
+### 5. Or run the services as containers
+
+Each service has its own multi-stage Dockerfile; the build context is the module directory.
+
+```bash
+docker build -t nexgen/user-service nexgen-server/user-service/user-service
+# … same pattern for product, inventory, cart, order, payment and notification
+
+docker run --rm -p 8081:8081 \
+  -e DB_HOST=host.docker.internal -e DB_NAME=userdb \
+  -e JWT_SECRET="$JWT_SECRET" -e KAFKA_HOST=host.docker.internal \
+  -e REDIS_HOST=host.docker.internal -e BOOTSTRAP_ADMIN_USERNAME=admin \
+  -e BOOTSTRAP_ADMIN_PASSWORD="$BOOTSTRAP_ADMIN_PASSWORD" \
+  nexgen/user-service
+```
+
+The runtime image is a JRE with a non-root user; nothing is compiled at runtime. Point `DB_HOST`, `KAFKA_HOST` and `REDIS_HOST` at `host.docker.internal` (Docker Desktop) or at your infrastructure's hostname.
+
+### 6. Configure the gateway
 
 ```bash
 ./kong-automation/setup-all.sh
@@ -192,7 +210,7 @@ The script is idempotent: services and routes are `PUT` by name, plugins are loo
 
 Kong forwards to the host through `extra_hosts: host.docker.internal:host-gateway`, so services must be running on the host.
 
-### 6. Run the end-to-end suite
+### 7. Run the end-to-end suite
 
 ```bash
 ./scripts/e2e-smoke.sh
@@ -208,10 +226,8 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 
 ## ⚠️ Known limitations
 
-- **No admin provisioning.** Registration always assigns `ROLE_USER`; admin tokens are minted out of band (the E2E suite promotes a user directly in SQL Server). Do not add a public admin-registration path without a separate audited design.
 - **Payments are simulated.** No PSP, no real settlement; the `.99` decline rule is the only failure mode.
 - **Kafka is PLAINTEXT, Redis has no auth, SQL Server uses `sa`** in the local Compose setup. Acceptable locally, never in production.
-- **No application Dockerfiles or CI**, and no Testcontainers/CI E2E — the suite runs against a developer machine's Docker.
 - `JWT_SECRET` must be at least 32 bytes and identical across services; the example value must never ship.
 - Prometheus scrapes cart and order only; Grafana has no provisioned dashboards.
 - Swagger is public in the HTTP services and documents auth only for user-service.
@@ -225,6 +241,7 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 - JWT access/refresh authentication on user-service, including rotation and revocation
 - Resource-server JWT validation on product, inventory, cart and order; role-gated writes and self-only cart access
 - Order ownership checks with token-derived `userId`; server-side role assignment on registration
+- Admin provisioning: a one-shot bootstrap administrator plus an admin-only role change endpoint, with the caller's own role refused and refresh tokens revoked on every change
 - Transactional outbox with a retrying, failure-aware publisher in every service, and idempotent consumers keyed on `eventId`
 - Event-driven checkout saga including stock reservation, payment authorisation, cart clearing and customer notification
 - Flyway migrations in all seven services, with constraints that match the domain
@@ -232,7 +249,8 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 - Mailpit-backed e-mail delivery outbox in notification-service
 - Swagger/OpenAPI in the five HTTP services (auth documented only for user-service)
 - Actuator health/readiness in every service, used by the E2E readiness check
-- An end-to-end verification script covering 31 checks, including the decline/compensation path
+- An end-to-end verification script covering 35 checks, including the decline/compensation path
+- A multi-stage Dockerfile per service (non-root runtime) and a CI pipeline that builds and tests each module, then runs the full E2E suite
 
 **Not implemented / partial**
 
@@ -252,8 +270,8 @@ The prioritized plan is in [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATIO
 - [x] Implement the event-driven checkout saga, the payment consumer and the notification consumer
 - [x] Add Flyway migrations and align constraints with the domain
 - [x] Verify the Kong configuration and the full checkout flow end to end
-- [ ] Add Dockerfiles and a CI pipeline that builds, tests and runs the E2E suite
-- [ ] Add admin provisioning with an audited flow
+- [x] Add Dockerfiles and a CI pipeline that builds, tests and runs the E2E suite
+- [x] Add admin provisioning: bootstrap administrator and admin-only, logged role changes
 - [ ] Add dashboards and actionable alerts for the saga
 - [ ] Move the E2E suite onto Testcontainers so it runs anywhere
 
@@ -279,9 +297,11 @@ nexgen/
 │   ├── cart-service/cart-service/
 │   ├── order-service/order-service/
 │   ├── payment-service/payment-service/
-│   └── notification-service/notification-service/
+│   └── notification-service/notification-service/   # each module has a Dockerfile
 ├── kong-automation/          # idempotent gateway setup
-├── scripts/e2e-smoke.sh      # end-to-end verification (31 checks)
+├── scripts/e2e-smoke.sh      # end-to-end verification (35 checks)
+├── scripts/ci-e2e.sh         # infrastructure + services + gateway + E2E (used by CI)
+├── .github/workflows/ci.yml  # build/test matrix, then the end-to-end job
 ├── prometheus/  loki/  promtail-config.yaml
 ├── logs/                     # local log output (gitignored)
 ├── docs/                     # architecture, security, runbook, deployment, audit
