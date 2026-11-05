@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -85,6 +86,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
         return buildErrorResponse("Access is denied", "FORBIDDEN", HttpStatus.FORBIDDEN);
+    }
+
+    /**
+     * An unknown path is a 404, not a server error. Letting the generic handler turn
+     * it into a 500 hid the fact that actuator was not on the classpath at all.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResource(NoResourceFoundException ex) {
+        return buildErrorResponse("Resource not found", "RESOURCE_NOT_FOUND", HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)

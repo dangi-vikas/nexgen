@@ -2,8 +2,10 @@
 # Idempotent Kong Admin API helpers.
 #
 # The previous scripts used POST everywhere, so a second run failed with 409
-# "already exists" and the gateway was left half-configured. Everything here is a PUT
-# keyed by name, which creates or replaces in one step.
+# "already exists" and the gateway was left half-configured. Services and routes are
+# provisioned with a PUT keyed by name, which creates or replaces in one step.
+# Plugins have no collection-level PUT in the Admin API, so they are looked up by
+# name first and then PATCHed (or POSTed when absent) - equally idempotent.
 set -euo pipefail
 
 : "${KONG_ADMIN_URL:?source utils/load-env.sh before utils/kong.sh}"
@@ -30,6 +32,14 @@ kong_put() { # path json
   _kong PUT "$1" -H 'Content-Type: application/json' -d "$2"
 }
 
+kong_post() { # path json
+  _kong POST "$1" -H 'Content-Type: application/json' -d "$2"
+}
+
+kong_patch() { # path json
+  _kong PATCH "$1" -H 'Content-Type: application/json' -d "$2"
+}
+
 kong_delete() { # path
   local code
   code=$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE "${KONG_ADMIN_URL}$1")
@@ -44,12 +54,26 @@ kong_delete() { # path
 }
 
 ensure_plugin() { # scope name json  (scope "" = global)
-  local scope=$1 name=$2 json=$3
-  if kong_get "${scope}/plugins" | grep -q "\"name\":\"${name}\""; then
-    echo "  = plugin ${name} on ${scope:-global} (already present)"
+  local scope=$1 name=$2 json=$3 id
+  # PUT /plugins is only valid for a single plugin, never the collection, so find the
+  # existing plugin id first: PATCH it if it exists, POST it otherwise.
+  # The `?name=` query filter is not honoured by every Kong version, so the list is
+  # split into objects and matched locally instead.
+  # Split on object boundaries (`},{`) rather than on `{`: a nested config object would
+  # otherwise separate a plugin's own id from its name.
+  id=$(curl -fsS "${KONG_ADMIN_URL}${scope}/plugins" 2>/dev/null \
+        | tr -d '\n' \
+        | sed 's/},{/}\n{/g' \
+        | grep -F "\"name\":\"${name}\"" \
+        | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || true)
+  if [ -n "$id" ]; then
+    kong_patch "/plugins/${id}" "$json"
+    echo "  = plugin ${name} on ${scope:-global} (updated)"
     return 0
   fi
-  kong_put "${scope}/plugins" "$json"
+  # The scope matters: POSTing to /plugins would create a global plugin that shadows
+  # every service-level one and trips the uniqueness constraint on the next run.
+  kong_post "${scope}/plugins" "$json"
   echo "  + plugin ${name} on ${scope:-global}"
 }
 

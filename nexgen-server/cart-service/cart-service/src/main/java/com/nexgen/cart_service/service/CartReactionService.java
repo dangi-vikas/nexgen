@@ -3,6 +3,7 @@ package com.nexgen.cart_service.service;
 import com.nexgen.cart_service.repository.CartItemRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +22,16 @@ public class CartReactionService {
 
     private final CartItemRepository cartRepository;
 
+    // The reads are cached under "cart", so deleting the rows alone left the old cart
+    // being served straight from Redis after the order was confirmed.
+    @CacheEvict(value = "cart", key = "#userId")
     @Transactional
     public void clearCartForUser(String userId) {
         cartRepository.deleteByUserId(userId);
         log.info("Cleared cart of user {}", userId);
     }
 
+    @CacheEvict(value = "cart", allEntries = true)
     @Transactional
     public void removeProductFromAllCarts(String productId) {
         cartRepository.deleteByProductId(productId);

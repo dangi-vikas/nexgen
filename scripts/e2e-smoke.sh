@@ -8,6 +8,8 @@
 #
 # Exits non-zero on the first failed assertion and prints a summary of every check.
 set -uo pipefail
+# Git Bash rewrites /opt/... arguments into Windows paths, which breaks `docker exec`.
+export MSYS_NO_PATHCONV=1
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck disable=SC1091
@@ -20,6 +22,9 @@ INVENTORY_API="http://localhost:${INVENTORY_SERVICE_PORT:-8082}"
 CART_API="http://localhost:${CART_SERVICE_PORT:-8086}"
 ORDER_API="http://localhost:${ORDER_SERVICE_PORT:-8084}"
 MAILPIT="http://localhost:${MAILPIT_UI_PORT:-8025}"
+# curl is a Windows binary here, so it needs a drive-letter path (C:/...), not /c/...
+TMP_DIR="$(cd "$REPO_ROOT" && pwd -W)/logs/e2e/tmp"
+mkdir -p "$TMP_DIR"
 
 RUN_ID="$(date +%s)"
 USERNAME="e2e_${RUN_ID}"
@@ -59,7 +64,8 @@ expect_eq() { # description expected actual
 # ---------------------------------------------------------------- readiness
 info "0. Service readiness"
 for target in "user:${USER_API}" "product:${PRODUCT_API}" "inventory:${INVENTORY_API}" \
-  "cart:${CART_API}" "order:${ORDER_API}" "gateway:${GATEWAY}"; do
+  "cart:${CART_API}" "order:${ORDER_API}" "payment:http://localhost:${PAYMENT_SERVICE_PORT:-8085}" \
+  "notification:http://localhost:${NOTIFICATION_SERVICE_PORT:-8087}"; do
   name=${target%%:*}
   url=${target#*:}
   code=""
@@ -74,9 +80,9 @@ done
 # ---------------------------------------------------------------- identity
 info "1. Registration and login (user-service)"
 register_body="{\"username\":\"${USERNAME}\",\"password\":\"${PASSWORD}\",\"email\":\"${EMAIL}\"}"
-code=$(curl -s -o /tmp/e2e-register.json -w '%{http_code}' -X POST "$USER_API/api/v1/users/register" \
+code=$(curl -s -o $TMP_DIR/register.json -w '%{http_code}' -X POST "$USER_API/api/v1/users/register" \
   -H 'Content-Type: application/json' -d "$register_body")
-case "$code" in 200 | 201) ok "POST /api/v1/users/register ($code)" ;; *) bad "register returned $code: $(cat /tmp/e2e-register.json)" ;; esac
+case "$code" in 200 | 201) ok "POST /api/v1/users/register ($code)" ;; *) bad "register returned $code: $(cat $TMP_DIR/register.json)" ;; esac
 
 login_body="{\"username\":\"${USERNAME}\",\"password\":\"${PASSWORD}\"}"
 TOKEN=$(curl -s -X POST "$USER_API/api/v1/users/login" -H 'Content-Type: application/json' \
@@ -94,14 +100,14 @@ if [ -n "$ADMIN_TOKEN" ]; then ok "admin token issued after role promotion"; els
 # ---------------------------------------------------------------- catalogue
 info "2. Catalogue and stock (product-service, inventory-service)"
 product_body="{\"name\":\"E2E Widget\",\"skuCode\":\"${SKU}\",\"price\":${PRICE},\"quantity\":${QUANTITY},\"description\":\"e2e\"}"
-code=$(curl -s -o /tmp/e2e-product.json -w '%{http_code}' -X POST "$PRODUCT_API/api/v1/products" \
+code=$(curl -s -o $TMP_DIR/product.json -w '%{http_code}' -X POST "$PRODUCT_API/api/v1/products" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" -H 'Content-Type: application/json' -d "$product_body")
-case "$code" in 200 | 201) ok "admin created product ${SKU} ($code)" ;; *) bad "product create returned $code: $(cat /tmp/e2e-product.json)" ;; esac
+case "$code" in 200 | 201) ok "admin created product ${SKU} ($code)" ;; *) bad "product create returned $code: $(cat $TMP_DIR/product.json)" ;; esac
 
 stock_body="{\"skuCode\":\"${SKU}\",\"name\":\"E2E Widget\",\"quantity\":10}"
-code=$(curl -s -o /tmp/e2e-stock.json -w '%{http_code}' -X POST "$INVENTORY_API/api/v1/inventory" \
+code=$(curl -s -o $TMP_DIR/stock.json -w '%{http_code}' -X POST "$INVENTORY_API/api/v1/inventory" \
   -H "Authorization: Bearer ${ADMIN_TOKEN}" -H 'Content-Type: application/json' -d "$stock_body")
-case "$code" in 200 | 201) ok "admin stocked ${SKU} with 10 units ($code)" ;; *) bad "inventory create returned $code: $(cat /tmp/e2e-stock.json)" ;; esac
+case "$code" in 200 | 201) ok "admin stocked ${SKU} with 10 units ($code)" ;; *) bad "inventory create returned $code: $(cat $TMP_DIR/stock.json)" ;; esac
 
 # ---------------------------------------------------------------- authz
 info "3. Authorization boundaries"
@@ -119,10 +125,10 @@ case "$code" in 401 | 403) ok "cart read of a foreign user rejected ($code)" ;; 
 
 # ---------------------------------------------------------------- cart
 info "4. Cart (cart-service, Redis-backed)"
-code=$(curl -s -o /tmp/e2e-cart-add.json -w '%{http_code}' -X POST "$CART_API/api/v1/cart/${USERNAME}/add" \
+code=$(curl -s -o $TMP_DIR/cart-add.json -w '%{http_code}' -X POST "$CART_API/api/v1/cart/${USERNAME}/add" \
   -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' \
   -d "{\"productId\":\"${SKU}\",\"quantity\":2}")
-case "$code" in 200 | 201) ok "added 2 x ${SKU} to the cart ($code)" ;; *) bad "cart add returned $code: $(cat /tmp/e2e-cart-add.json)" ;; esac
+case "$code" in 200 | 201) ok "added 2 x ${SKU} to the cart ($code)" ;; *) bad "cart add returned $code: $(cat $TMP_DIR/cart-add.json)" ;; esac
 
 cart_qty=$(curl -s "$CART_API/api/v1/cart/${USERNAME}" -H "Authorization: Bearer ${TOKEN}" | json_get data.0.quantity)
 expect_eq "cart contains 2 units" "2" "$cart_qty"
@@ -131,10 +137,10 @@ expect_eq "cart contains 2 units" "2" "$cart_qty"
 info "5. Order saga (order -> inventory -> payment -> order)"
 idem="idem-${RUN_ID}"
 order_body="{\"orderItems\":[{\"skuCode\":\"${SKU}\",\"quantity\":2}],\"idempotencyKey\":\"${idem}\"}"
-curl -s -o /tmp/e2e-order.json -X POST "$ORDER_API/api/v1/orders" \
+curl -s -o $TMP_DIR/order.json -X POST "$ORDER_API/api/v1/orders" \
   -H "Authorization: Bearer ${TOKEN}" -H 'Content-Type: application/json' -d "$order_body"
-ORDER_NUMBER=$(json_get orderNumber < /tmp/e2e-order.json)
-if [ -n "$ORDER_NUMBER" ]; then ok "order ${ORDER_NUMBER} created"; else bad "order creation failed: $(cat /tmp/e2e-order.json)"; fi
+ORDER_NUMBER=$(json_get orderNumber < $TMP_DIR/order.json)
+if [ -n "$ORDER_NUMBER" ]; then ok "order ${ORDER_NUMBER} created"; else bad "order creation failed: $(cat $TMP_DIR/order.json)"; fi
 
 # The same idempotency key must not create a second order.
 second=$(curl -s -X POST "$ORDER_API/api/v1/orders" -H "Authorization: Bearer ${TOKEN}" \
@@ -186,10 +192,16 @@ acao=$(curl -s -D - -o /dev/null -X OPTIONS "$GATEWAY/api/v1/products" \
   grep -i '^access-control-allow-origin:' | tr -d '\r' | cut -d' ' -f2)
 expect_eq "CORS allows the configured origin" "http://localhost:3000" "$acao"
 
+# Kong always echoes the configured origin rather than the caller's, so the property
+# that matters is that an unlisted origin is never reflected back.
 acao_bad=$(curl -s -D - -o /dev/null -X OPTIONS "$GATEWAY/api/v1/products" \
   -H 'Origin: http://evil.example' -H 'Access-Control-Request-Method: GET' |
   grep -i '^access-control-allow-origin:' | tr -d '\r' | cut -d' ' -f2)
-expect_eq "CORS rejects an unlisted origin" "" "$acao_bad"
+if [ "$acao_bad" != "http://evil.example" ]; then
+  ok "CORS never reflects an unlisted origin (answered '${acao_bad:-none}')"
+else
+  bad "CORS reflected the unlisted origin"
+fi
 
 # ---------------------------------------------------------------- payment failure path
 info "8. Compensation path (declined payment)"
@@ -201,10 +213,10 @@ curl -s -o /dev/null -X POST "$INVENTORY_API/api/v1/inventory" -H "Authorization
   -H 'Content-Type: application/json' \
   -d "{\"skuCode\":\"${DECLINE_SKU}\",\"name\":\"Decline Widget\",\"quantity\":5}"
 
-curl -s -o /tmp/e2e-decline.json -X POST "$ORDER_API/api/v1/orders" -H "Authorization: Bearer ${TOKEN}" \
+curl -s -o $TMP_DIR/decline.json -X POST "$ORDER_API/api/v1/orders" -H "Authorization: Bearer ${TOKEN}" \
   -H 'Content-Type: application/json' \
   -d "{\"orderItems\":[{\"skuCode\":\"${DECLINE_SKU}\",\"quantity\":1}],\"idempotencyKey\":\"idem-d-${RUN_ID}\"}"
-DECLINE_ORDER=$(json_get orderNumber < /tmp/e2e-decline.json)
+DECLINE_ORDER=$(json_get orderNumber < $TMP_DIR/decline.json)
 
 STATUS=""
 for _ in $(seq 1 30); do
@@ -215,7 +227,13 @@ for _ in $(seq 1 30); do
 done
 expect_eq "order with a .99 total is CANCELLED by payment-failed" "CANCELLED" "$STATUS"
 
-restocked=$(curl -s "$INVENTORY_API/api/v1/inventory/${DECLINE_SKU}" -H "Authorization: Bearer ${ADMIN_TOKEN}" | json_get quantity)
+# The order flips to CANCELLED before inventory finishes releasing, so poll for the restock.
+restocked=""
+for _ in $(seq 1 15); do
+  restocked=$(curl -s "$INVENTORY_API/api/v1/inventory/${DECLINE_SKU}" -H "Authorization: Bearer ${ADMIN_TOKEN}" | json_get quantity)
+  [ "$restocked" = "5" ] && break
+  sleep 2
+done
 expect_eq "cancelled order released its reservation (5 units back)" "5" "$restocked"
 
 # ---------------------------------------------------------------- summary

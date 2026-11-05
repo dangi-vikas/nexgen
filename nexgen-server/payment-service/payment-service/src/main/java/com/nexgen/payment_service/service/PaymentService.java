@@ -49,29 +49,24 @@ public class PaymentService {
             return;
         }
 
+        // Charge first, then write the row exactly once. Saving a PENDING row and updating
+        // it afterwards made the second save re-insert, hitting uk_payments_order and
+        // parking the event in an endless retry loop.
+        PaymentGateway.ChargeResult result = paymentGateway.charge(orderNumber, amount, currency);
+
         Payment payment = Payment.builder()
                 .orderNumber(orderNumber)
                 .userId(userId)
                 .amount(amount)
                 .currency(currency)
-                .status(PaymentStatus.PENDING)
+                .status(result.authorized() ? PaymentStatus.AUTHORIZED : PaymentStatus.FAILED)
                 .provider(paymentGateway.name())
+                .providerRef(result.authorized() ? result.providerRef() : null)
+                .failureReason(result.authorized() ? null : result.failureReason())
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .version(0L)
                 .build();
-        paymentRepository.save(payment);
-
-        PaymentGateway.ChargeResult result = paymentGateway.charge(orderNumber, amount, currency);
-
-        if (result.authorized()) {
-            payment.setStatus(PaymentStatus.AUTHORIZED);
-            payment.setProviderRef(result.providerRef());
-        } else {
-            payment.setStatus(PaymentStatus.FAILED);
-            payment.setFailureReason(result.failureReason());
-        }
-        payment.setUpdatedAt(Instant.now());
         paymentRepository.save(payment);
 
         publish(result.authorized() ? PAYMENT_AUTHORIZED : PAYMENT_FAILED, payment, correlationId);

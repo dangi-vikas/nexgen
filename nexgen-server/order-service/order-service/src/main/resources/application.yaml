@@ -21,6 +21,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.SQLServerDialect
+        type.preferred_instant_jdbc_type: TIMESTAMP
         format_sql: false
   flyway:
     enabled: true

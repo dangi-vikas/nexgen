@@ -35,6 +35,12 @@ public class User implements UserDetails {
     // e.g., ROLE_USER, ROLE_ADMIN
     private String role;
 
+    // users.enabled is NOT NULL in V1__init.sql, so it must be mapped: leaving it out
+    // made every INSERT fail with "Cannot insert the value NULL into column 'enabled'".
+    @Builder.Default
+    @Column(nullable = false)
+    private boolean enabled = true;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return Collections.singletonList(new SimpleGrantedAuthority(role));
@@ -58,6 +64,6 @@ public class User implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return enabled;
     }
 }
