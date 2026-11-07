@@ -1,8 +1,8 @@
 # NexGen Deployment
 
-**Status:** Current deployment is **developer-local only**. There are no Dockerfiles, no application containers, no database initialization, no CI/CD, and the Kong automation is broken. Production deployment is blocked. This document describes what can be done today, the workarounds required, and the target deployment model.
+**Status:** Current deployment is **developer-local**. The operational gaps around it are now closed: every service has a multi-stage Dockerfile, database schemas are created by Flyway, the gateway automation works against a live Kong, and CI builds, tests and runs the end-to-end suite. Production deployment is still blocked by the security and observability findings below. This document describes what works today and the target deployment model.
 
-**Verified on:** 2026-10-26, commit `bf41b37`, Windows, Java 21, Maven Wrapper 3.9.9. Docker was not started, so container/runtime steps are **unverified**. The uncommitted Batch 1 and Batch 2 changes are reflected below.
+**Verified on:** 2026-11-06, Windows, Java 21, Maven Wrapper 3.9.9. Docker was running: the seven services, Kong and `scripts/e2e-smoke.sh` were exercised end to end (**35/35**), and a service image was built and started from its Dockerfile.
 
 ---
 
@@ -12,10 +12,10 @@
 |---|---|---|
 | Run services from IntelliJ / `mvnw spring-boot:run` | Yes | Requires infrastructure and manual DB creation |
 | Docker Compose for infrastructure only | Yes (config present) | Starts SQL Server, Redis, Kafka, Kong, observability; **not** the apps |
-| Docker Compose for the whole system | **No** | No Dockerfiles or app services |
+| Compose for the whole system | **No** | Per-service Dockerfiles exist, but Compose does not start the apps; `scripts/ci-e2e.sh` does |
 | Kubernetes/Helm | **No** | Nothing exists |
 | Azure/cloud | **No** | Nothing exists; README says "planned" |
-| CI/CD | **No** | No workflows |
+| CI/CD | **Yes** | `.github/workflows/ci.yml` — build/test matrix, then the end-to-end job |
 | Production | **No** | Critical audit findings open |
 
 ---
@@ -394,15 +394,15 @@ Or use Helm/Kubernetes for production with Deployments, Services, ConfigMaps, Se
 
 | Blocker | Finding | Resolution batch |
 |---|---|---|
-| No Dockerfiles/app containers | C-08 | Batch 6 |
-| Databases never created | C-10 | Batch 4 |
+| No Dockerfiles/app containers | C-08 | **Resolved**: multi-stage Dockerfile per service (non-root runtime) |
+| Databases never created | C-10 | **Resolved**: creation step documented and scripted; schema owned by Flyway |
 | Missing/undocumented config vars | C-08/C-11 | **`.env.example` added in Batch 1**; remaining secrets/config work in Batch 6 |
-| Kong scripts broken; login blocked | C-08 | Batch 6 |
+| Kong scripts broken; login blocked | C-08 | **Resolved**: automation is idempotent and verified against Kong 3.5 |
 | Services open/unauthenticated | C-01 | **Application auth added in Batch 2**; direct ports/Kong still open (Batch 6) |
 | Plaintext Kafka/Redis/SQL; exposed admin | C-09 | Batch 6 |
-| `ddl-auto=update` | C-10 | Batch 4 |
+| `ddl-auto=update` | C-10 | **Resolved**: `ddl-auto=validate` with Flyway migrations |
 | Runtime/integration tests cannot run without infra | H-14 | **Context tests skipped with reason after Batch 2**; Testcontainers in Batch 8 |
-| No CI/CD | H-14 | Batch 6 |
+| No CI/CD | H-14 | **Resolved**: `.github/workflows/ci.yml` |
 | No healthchecks/backups | M-07 | Batch 6/9 |
 
 **Do not deploy to production until these are closed.**

@@ -123,7 +123,10 @@ services:
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    # The services run on the host, so scraping them needs the host-gateway alias.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
 
@@ -131,7 +134,8 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3000:3000"
+      # Override GRAFANA_PORT when :3000 is already taken by a local Grafana.
+      - "${GRAFANA_PORT:-3000}:3000"
     depends_on:
       - prometheus
       - loki
@@ -140,6 +144,9 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana-storage:/var/lib/grafana
+      # Datasources and dashboards are versioned in the repository, not clicked in.
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
   loki:
     image: grafana/loki:2.9.2

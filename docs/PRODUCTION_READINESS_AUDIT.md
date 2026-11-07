@@ -1,5 +1,7 @@
 # NexGen Production Readiness Audit
 
+> **Update (2026-11-06):** this document records the state at audit time. Two of its findings have since been closed: every service now has a multi-stage Dockerfile (`nexgen-server/<service>/<service>/Dockerfile`) and `.github/workflows/ci.yml` builds, tests and runs the end-to-end suite. See [README.md](README.md) for the current state.
+
 **Audit date:** 2026-10-24  
 **Baseline commit:** `bf41b37e579cc7bd34f3828bc7b707f0e539f80a` (`master`, last commit 2025-05-26)  
 **Repository:** `https://github.com/dangi-vikas/nexgen`  

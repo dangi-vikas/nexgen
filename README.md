@@ -98,9 +98,9 @@ Every service has its own SQL Server database (`userdb`, `productdb`, `inventory
 ## 📊 Monitoring & Observability
 
 - Actuator is present in all seven services; `/actuator/health` is what the end-to-end readiness check polls, and `liveness`/`readiness` groups are enabled.
-- Prometheus scrapes **cart-service** and **order-service** only. Product, inventory, payment and notification expose Micrometer metrics that are not scraped yet.
-- Grafana has no provisioned dashboards in the repository.
-- Loki/Promtail watch cart-service and Kong only; the other services log to files under `logs/<service>/` with relative paths and no retention policy.
+- Prometheus scrapes **all seven services** plus itself (`prometheus/prometheus.yml`). Every service exposes Micrometer metrics at `/actuator/prometheus`.
+- Grafana is provisioned from the repository (`monitoring/grafana`): Prometheus and Loki datasources plus the **NexGen — Services & Checkout Saga** dashboard (services up, request rate, p95 latency, 5xx rate, JVM heap, order-service logs). Nothing is clicked in by hand.
+- Loki/Promtail tail `logs/<service>/application.log` for all seven services and Kong, but there is no retention policy.
 - Logs are structured JSON carrying a `correlationId`, and the gateway echoes it as `X-Correlation-Id`, so one checkout can be followed across services by that id.
 - Custom metrics are partial and are not documented as SLOs.
 
@@ -254,10 +254,10 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 
 **Not implemented / partial**
 
-- Admin/internal account provisioning and audited admin flows
+- A dedicated audit trail for administrative actions (they are logged, but not stored in their own table)
 - A real payment provider (the simulator charges nothing; a live PSP also costs money)
-- Dockerfiles, CI, or automated infrastructure provisioning
-- Production observability (only partial Actuator/Prometheus coverage, no dashboards)
+- Automated infrastructure provisioning (infrastructure is one Compose file; images are built per service)
+- Alerting and retention: metrics and logs are collected and dashboarded, but nothing pages and nothing expires
 - Testcontainers integration tests in CI (the E2E run is manual)
 - Load, soak and failure-injection testing
 
@@ -272,7 +272,8 @@ The prioritized plan is in [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATIO
 - [x] Verify the Kong configuration and the full checkout flow end to end
 - [x] Add Dockerfiles and a CI pipeline that builds, tests and runs the E2E suite
 - [x] Add admin provisioning: bootstrap administrator and admin-only, logged role changes
-- [ ] Add dashboards and actionable alerts for the saga
+- [x] Add provisioned Grafana dashboards for the services and the checkout saga
+- [ ] Add alert rules and notification routing
 - [ ] Move the E2E suite onto Testcontainers so it runs anywhere
 
 ## 🧼 Engineering practices in the current code

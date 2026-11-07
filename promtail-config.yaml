@@ -8,20 +8,60 @@ positions:
 clients:
   - url: http://loki:3100/loki/api/v1/push
 
+# Each service writes logs/<service>/application.log (see logback-spring.xml).
 scrape_configs:
+  - job_name: user-service
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: user-service
+          __path__: /var/logs/user-service/application.log
+
+  - job_name: inventory-service
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: inventory-service
+          __path__: /var/logs/inventory-service/application.log
+
+  - job_name: product-service
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: product-service
+          __path__: /var/logs/product-service/application.log
+
+  - job_name: order-service
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: order-service
+          __path__: /var/logs/order-service/application.log
+
+  - job_name: payment-service
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: payment-service
+          __path__: /var/logs/payment-service/application.log
+
   - job_name: cart-service
     static_configs:
-      - targets:
-          - localhost
+      - targets: [localhost]
         labels:
           job: cart-service
           __path__: /var/logs/cart-service/application.log
 
+  - job_name: notification-service
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: notification-service
+          __path__: /var/logs/notification-service/application.log
+
   - job_name: kong-logs
     static_configs:
-      - targets:
-          - localhost
+      - targets: [localhost]
         labels:
           job: kong
           __path__: /var/logs/kong-gateway-service/*.log
-
