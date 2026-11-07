@@ -59,7 +59,10 @@ jobs:
           cache: maven
 
       - name: Infrastructure, services, gateway and E2E
-        run: ./scripts/ci-e2e.sh
+        # Invoke through bash: the repository is developed on Windows, where
+        # core.fileMode=false means a newly added script lands in git as 100644 and
+        # `./scripts/ci-e2e.sh` dies with "Permission denied" (exit 126) on the runner.
+        run: bash ./scripts/ci-e2e.sh
 
       - name: Upload service logs
         if: always()
