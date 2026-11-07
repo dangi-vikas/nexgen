@@ -1,8 +1,8 @@
-# Northleaf storefront
+# NexGen storefront
 
-The customer-facing pharmacy storefront for NexGen. Northleaf is a demo brand
-built around a simple promise: **care that feels human**. The UI is an editorial,
-cream-and-forest storefront rather than a generic dashboard.
+The customer-facing pharmacy storefront for NexGen, built around a simple
+promise: **care that feels human**. The UI is an editorial, cream-and-forest
+storefront rather than a generic dashboard.
 
 ## Stack
 
@@ -16,7 +16,7 @@ cream-and-forest storefront rather than a generic dashboard.
 ## Run locally
 
 ```bash
-cd web
+cd nexgen-ui
 npm install
 npm run dev
 ```
@@ -34,7 +34,7 @@ npm run preview
 
 ## Data and environment
 
-Copy `web/.env.example` to `web/.env` and adjust:
+Copy `nexgen-ui/.env.example` to `nexgen-ui/.env` and adjust:
 
 | Variable | Purpose |
 | --- | --- |
@@ -77,7 +77,7 @@ shelf and product page.
 
 - Mock catalogue and editorial content live in `src/lib/mock.ts`.
 - `WELCOME10` is the demo promo code and persists across cart, checkout and review.
-- Orders placed in the browser are stored under `northleaf-placed-orders` and
+- Orders placed in the browser are stored under `nexgen-placed-orders` and
   merged into the account order history, so the confirmation flow is visible
   end to end without a running order service.
 - Cart contents and the applied promo code are persisted locally.

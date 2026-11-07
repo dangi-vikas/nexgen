@@ -16,7 +16,7 @@ export class ApiError extends Error {
 }
 
 function authHeaders(): HeadersInit {
-  const token = localStorage.getItem('northleaf-token');
+  const token = localStorage.getItem('nexgen-token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -149,7 +149,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      localStorage.setItem('northleaf-token', payload.accessToken);
+      localStorage.setItem('nexgen-token', payload.accessToken);
       return payload.user;
     }, { ...currentUser, email });
   },
@@ -170,7 +170,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ name, email, password }),
       });
-      localStorage.setItem('northleaf-token', payload.accessToken);
+      localStorage.setItem('nexgen-token', payload.accessToken);
       return payload.user;
     }, { ...currentUser, name, email });
   },

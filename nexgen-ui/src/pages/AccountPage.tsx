@@ -515,7 +515,7 @@ export function AccountPage() {
 
   return (
     <>
-      <PageMeta title="Your account — Northleaf Pharmacy" />
+      <PageMeta title="Your account — NexGen Pharmacy" />
       <section className="border-b border-line bg-paper/50 py-10 sm:py-12">
         <div className="container-page">
           <p className="eyebrow text-clay-dark">Your account</p>

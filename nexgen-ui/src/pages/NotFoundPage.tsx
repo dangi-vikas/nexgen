@@ -5,7 +5,7 @@ import { PageMeta } from '@/components/ui/PageMeta';
 export function NotFoundPage() {
   return (
     <>
-      <PageMeta title="Page not found — Northleaf Pharmacy" />
+      <PageMeta title="Page not found — NexGen Pharmacy" />
       <div className="container-page flex min-h-[60vh] flex-col items-center justify-center py-16 text-center">
         <p className="eyebrow text-clay-dark">404</p>
         <h1 className="display mt-3 text-[2.8rem] sm:text-[4rem]">

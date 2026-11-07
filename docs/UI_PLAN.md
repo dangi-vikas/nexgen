@@ -1,4 +1,4 @@
-# Northleaf Pharmacy — Storefront UI Plan
+# NexGen Pharmacy — Storefront UI Plan
 
 > A production-grade storefront for the NexGen pharmacy platform, inspired by the editorial
 > travel layout supplied as reference (organic hero, floating search, card grid, warm cream
@@ -8,12 +8,12 @@
 
 | Token | Value |
 | --- | --- |
-| Name | **Northleaf** |
+| Name | **NexGen** |
 | Descriptor | Pharmacy & wellness |
 | Tagline | *Care that feels human.* |
 | Voice | Calm, precise, warm. Never salesy. |
 
-Wordmark: lowercase `northleaf` in a tight geometric sans with a hand-drawn leaf/crescent mark.
+Wordmark: lowercase `nexgen` in a tight geometric sans with a hand-drawn leaf/crescent mark.
 Avoid generic medical crosses, capsules-as-logo, and "AI gradient" clichés.
 
 ## 2. Design language

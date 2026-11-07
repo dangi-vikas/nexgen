@@ -32,7 +32,7 @@ export function ArticlePage() {
   return (
     <>
       <PageMeta
-        title={`${article.title} — Northleaf Journal`}
+        title={`${article.title} — NexGen Journal`}
         description={article.excerpt}
       />
 
@@ -103,7 +103,7 @@ export function ArticlePage() {
 
             <div className="mt-8 flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-[13px] font-semibold">Written by the Northleaf pharmacy team</p>
+                <p className="text-[13px] font-semibold">Written by the NexGen pharmacy team</p>
                 <p className="mt-0.5 text-[12px] text-muted">Reviewed by Amara Osei, lead pharmacist.</p>
               </div>
               <Link to="/pharmacists" className="link-quiet shrink-0">

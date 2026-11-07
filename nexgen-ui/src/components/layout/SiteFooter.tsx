@@ -89,7 +89,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-14 flex flex-col gap-5 border-t border-cream/10 pt-6 text-[11.5px] text-cream/60 lg:flex-row lg:items-center lg:justify-between">
-          <p>© 2026 Northleaf Pharmacy. A demonstration storefront.</p>
+          <p>© 2026 NexGen Pharmacy. A demonstration storefront.</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
             <Link to="/help#privacy" className="transition-colors hover:text-cream">
               Privacy

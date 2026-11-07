@@ -253,7 +253,7 @@ export function ShopPage() {
   return (
     <>
       <PageMeta
-        title="Shop all — Northleaf Pharmacy"
+        title="Shop all — NexGen Pharmacy"
         description="Browse pharmacist-curated skin, supplements, herbal remedies and everyday essentials."
       />
 

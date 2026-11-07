@@ -20,6 +20,6 @@ export const usePlacedOrders = create<PlacedOrdersState>()(
       add: (order) => set((state) => ({ placed: [order, ...state.placed] })),
       clear: () => set({ placed: [] }),
     }),
-    { name: 'northleaf-placed-orders' },
+    { name: 'nexgen-placed-orders' },
   ),
 );

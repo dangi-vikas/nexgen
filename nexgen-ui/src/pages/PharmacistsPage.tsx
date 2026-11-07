@@ -69,8 +69,8 @@ export function PharmacistsPage() {
   return (
     <>
       <PageMeta
-        title="Pharmacists — Northleaf Pharmacy"
-        description="Book time with a licensed Northleaf pharmacist for medication reviews, skin, sleep and travel health."
+        title="Pharmacists — NexGen Pharmacy"
+        description="Book time with a licensed NexGen pharmacist for medication reviews, skin, sleep and travel health."
       />
 
       <section className="noise border-b border-line py-10 sm:py-14">
@@ -118,7 +118,7 @@ export function PharmacistsPage() {
               <div className="organic-mask relative aspect-[4/4.2] overflow-hidden bg-sage">
                 <img
                   src="/images/pharmacy-consult.jpg"
-                  alt="A Northleaf pharmacist consulting with a patient"
+                  alt="A NexGen pharmacist consulting with a patient"
                   width={1600}
                   height={1067}
                   fetchPriority="high"

@@ -71,7 +71,7 @@ function DetailView({ product }: { product: Product }) {
   return (
     <>
       <PageMeta
-        title={`${product.name} — Northleaf Pharmacy`}
+        title={`${product.name} — NexGen Pharmacy`}
         description={product.description}
       />
 

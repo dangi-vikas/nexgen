@@ -54,7 +54,7 @@ export function AuthPage() {
         : await api.login(email.trim(), password);
       signIn(user);
       showToast({
-        title: isRegister ? 'Welcome to Northleaf' : 'Welcome back',
+        title: isRegister ? 'Welcome to NexGen' : 'Welcome back',
         detail: isRegister ? 'Your account is ready.' : `Signed in as ${user.email}`,
       });
       navigate('/account');
@@ -84,7 +84,7 @@ export function AuthPage() {
   return (
     <>
       <PageMeta
-        title={isRegister ? 'Create an account — Northleaf Pharmacy' : 'Sign in — Northleaf Pharmacy'}
+        title={isRegister ? 'Create an account — NexGen Pharmacy' : 'Sign in — NexGen Pharmacy'}
         description="Sign in to manage prescriptions, orders and delivery details."
       />
 
@@ -93,7 +93,7 @@ export function AuthPage() {
           <div className="flex flex-col justify-center px-6 py-10 sm:px-10 sm:py-14 lg:px-14">
             <div className="mx-auto w-full max-w-sm">
               <p className="eyebrow text-clay-dark">
-                {isRegister ? 'Join Northleaf' : 'Welcome back'}
+                {isRegister ? 'Join NexGen' : 'Welcome back'}
               </p>
               <h1 className="display mt-3 text-[2.2rem] sm:text-[2.6rem]">
                 {isRegister ? (
@@ -102,7 +102,7 @@ export function AuthPage() {
                   </>
                 ) : (
                   <>
-                    Sign in to <span className="serif text-forest">Northleaf.</span>
+                    Sign in to <span className="serif text-forest">NexGen.</span>
                   </>
                 )}
               </h1>
@@ -234,7 +234,7 @@ export function AuthPage() {
               </form>
 
               <p className="mt-6 text-center text-[13px] text-muted">
-                {isRegister ? 'Already have an account?' : 'New to Northleaf?'}{' '}
+                {isRegister ? 'Already have an account?' : 'New to NexGen?'}{' '}
                 <Link
                   to={isRegister ? '/login' : '/register'}
                   className="font-bold text-forest hover:text-clay-dark"
@@ -253,7 +253,7 @@ export function AuthPage() {
           <div className="relative hidden min-h-[620px] lg:block">
             <img
               src="/images/pharmacist-woman.jpg"
-              alt="A Northleaf pharmacist at the counter"
+              alt="A NexGen pharmacist at the counter"
               width={1200}
               height={1800}
               loading="lazy"

@@ -128,7 +128,7 @@ function Hero() {
             <div className="organic-mask relative aspect-[4/4.3] overflow-hidden bg-sage">
               <img
                 src="/images/pharmacy-consult.jpg"
-                alt="A Northleaf pharmacist talking a customer through her options at the counter"
+                alt="A NexGen pharmacist talking a customer through her options at the counter"
                 width={1600}
                 height={1067}
                 fetchPriority="high"
@@ -353,7 +353,7 @@ function Story() {
             <div className="relative aspect-[5/4.4] overflow-hidden rounded-[36px] bg-sage">
               <img
                 src="/images/hero-pharmacy.jpg"
-                alt="A pharmacist at Northleaf reaching for a preparation on the wooden shelves"
+                alt="A pharmacist at NexGen reaching for a preparation on the wooden shelves"
                 width={1800}
                 height={1200}
                 loading="lazy"
@@ -379,7 +379,7 @@ function Story() {
             <br className="hidden sm:block" /> knows <span className="serif text-forest">your name.</span>
           </h2>
           <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-muted">
-            Northleaf began behind a single wooden counter in 1998. Three decades later the shelves
+            NexGen began behind a single wooden counter in 1998. Three decades later the shelves
             are deeper and the delivery van is electric, but the idea has not moved: good pharmacy
             is a conversation, not a transaction.
           </p>
@@ -428,7 +428,7 @@ function Journal() {
 
             <div className="relative grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:gap-14">
               <div className="lg:pt-2">
-                <p className="eyebrow text-forest/85">The Northleaf journal</p>
+                <p className="eyebrow text-forest/85">The NexGen journal</p>
                 <h2 className="display mt-4 text-[2rem] leading-[1.03] text-ink sm:text-[2.6rem]">
                   Notes on feeling well,
                   <br className="hidden sm:block" /> not just{' '}
@@ -598,7 +598,7 @@ export function HomePage() {
   return (
     <>
       <PageMeta
-        title="Northleaf — Care that feels human."
+        title="NexGen — Care that feels human."
         description="A modern pharmacy for everyday health. Prescriptions, wellness essentials and honest advice from licensed pharmacists."
       />
       <Hero />

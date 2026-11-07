@@ -63,7 +63,7 @@ export function PrescriptionsPage() {
   return (
     <>
       <PageMeta
-        title="Prescriptions — Northleaf Pharmacy"
+        title="Prescriptions — NexGen Pharmacy"
         description="Upload a prescription, transfer from another pharmacy or request a repeat. Reviewed by licensed pharmacists."
       />
 
@@ -219,7 +219,7 @@ export function PrescriptionsPage() {
                       }}
                       className="mt-0.5 size-4 rounded accent-forest"
                     />
-                    I confirm this prescription is valid and consent to a Northleaf pharmacist
+                    I confirm this prescription is valid and consent to a NexGen pharmacist
                     reviewing it.
                   </label>
 
@@ -249,7 +249,7 @@ export function PrescriptionsPage() {
                 {[
                   {
                     title: 'Send it over',
-                    copy: 'Upload a photo, or ask your prescriber to send it to Northleaf.',
+                    copy: 'Upload a photo, or ask your prescriber to send it to NexGen.',
                   },
                   {
                     title: 'We review',

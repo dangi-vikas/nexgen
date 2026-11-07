@@ -158,7 +158,7 @@ export function CheckoutPage() {
   if (orderNumber) {
     return (
       <>
-        <PageMeta title="Order confirmed — Northleaf Pharmacy" />
+        <PageMeta title="Order confirmed — NexGen Pharmacy" />
         <div className="container-page py-14 sm:py-20">
           <div className="mx-auto max-w-xl text-center">
             <span className="mx-auto grid size-16 place-items-center rounded-full bg-sage text-forest">
@@ -226,7 +226,7 @@ export function CheckoutPage() {
   return (
     <>
       <PageMeta
-        title="Checkout — Northleaf Pharmacy"
+        title="Checkout — NexGen Pharmacy"
         description="Secure checkout with delivery, pickup and pharmacist support."
       />
 
@@ -699,7 +699,7 @@ export function CheckoutPage() {
 
               <div className="mt-4 flex items-center gap-2 rounded-lg bg-sage/40 px-3 py-2.5 text-[11px] text-muted">
                 <MapPin className="size-3.5 shrink-0 text-forest" aria-hidden="true" />
-                Fulfilled by Northleaf Pharmacy, San Francisco
+                Fulfilled by NexGen Pharmacy, San Francisco
               </div>
             </div>
           </aside>

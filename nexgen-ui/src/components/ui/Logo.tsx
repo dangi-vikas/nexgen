@@ -39,7 +39,7 @@ export function Logo({
       </span>
       <span className="flex flex-col leading-none">
         <span className={cn('text-[1.3rem] font-extrabold tracking-[-0.055em]', text)}>
-          northleaf
+          nexgen
         </span>
         {withDescriptor ? (
           <span

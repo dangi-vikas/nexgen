@@ -66,7 +66,7 @@ export const useCartStore = create<CartState>()(
       close: () => set({ isOpen: false }),
     }),
     {
-      name: 'northleaf-cart',
+      name: 'nexgen-cart',
       partialize: (state) => ({ lines: state.lines, promoCode: state.promoCode }),
     },
   ),

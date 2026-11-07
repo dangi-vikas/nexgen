@@ -45,8 +45,8 @@ export function CartPage() {
   return (
     <>
       <PageMeta
-        title="Your bag — Northleaf Pharmacy"
-        description="Review your Northleaf bag and continue to checkout."
+        title="Your bag — NexGen Pharmacy"
+        description="Review your NexGen bag and continue to checkout."
       />
 
       <div className="container-page py-10 sm:py-14">

@@ -11,7 +11,7 @@ export function JournalPage() {
   return (
     <>
       <PageMeta
-        title="The Northleaf journal — Notes on feeling well"
+        title="The NexGen journal — Notes on feeling well"
         description="Plain-language writing from behind the pharmacy counter: skin, sleep, supplements and everyday health."
       />
 
@@ -22,7 +22,7 @@ export function JournalPage() {
             <div>
               <p className="eyebrow text-clay-dark">
                 <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
-                The Northleaf journal
+                The NexGen journal
               </p>
               <h1 className="display mt-4 max-w-2xl text-[2.7rem] leading-[1.01] sm:text-[3.6rem]">
                 Notes on feeling well,

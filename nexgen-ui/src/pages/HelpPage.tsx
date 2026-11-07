@@ -34,8 +34,8 @@ export function HelpPage() {
   return (
     <>
       <PageMeta
-        title="Help & contact — Northleaf Pharmacy"
-        description="Delivery, returns, prescriptions and privacy. Reach a Northleaf pharmacist by phone, email or in person."
+        title="Help & contact — NexGen Pharmacy"
+        description="Delivery, returns, prescriptions and privacy. Reach a NexGen pharmacist by phone, email or in person."
       />
 
       <section className="border-b border-line bg-sage/30 py-10 sm:py-12">
@@ -89,7 +89,7 @@ export function HelpPage() {
                 We collect only what is needed to dispense prescriptions and deliver orders. Health
                 data is encrypted, access-controlled and retained in line with California and
                 federal pharmacy law. You can request a copy or deletion of your account data by
-                emailing <a href="mailto:privacy@northleaf.example" className="font-semibold text-forest">privacy@northleaf.example</a>.
+                emailing <a href="mailto:privacy@nexgen.example" className="font-semibold text-forest">privacy@nexgen.example</a>.
               </p>
             </div>
 
@@ -115,7 +115,7 @@ export function HelpPage() {
               <h2 className="text-xl font-semibold tracking-[-0.03em]">Careers</h2>
               <p className="mt-3 max-w-2xl text-[13.5px] leading-relaxed text-muted">
                 We are always glad to meet pharmacists who believe care is a conversation. Write to{' '}
-                <a href="mailto:careers@northleaf.example" className="font-semibold text-forest">careers@northleaf.example</a>{' '}
+                <a href="mailto:careers@nexgen.example" className="font-semibold text-forest">careers@nexgen.example</a>{' '}
                 with a short note.
               </p>
             </div>
@@ -137,8 +137,8 @@ export function HelpPage() {
                 <li className="flex items-start gap-3">
                   <Mail className="mt-0.5 size-4 shrink-0 text-forest" strokeWidth={1.7} aria-hidden="true" />
                   <span>
-                    <a href="mailto:care@northleaf.example" className="font-semibold hover:text-forest">
-                      care@northleaf.example
+                    <a href="mailto:care@nexgen.example" className="font-semibold hover:text-forest">
+                      care@nexgen.example
                     </a>
                     <span className="mt-0.5 block text-muted">Replies within one working day</span>
                   </span>
