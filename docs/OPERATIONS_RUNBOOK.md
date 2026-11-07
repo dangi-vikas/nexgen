@@ -249,7 +249,9 @@ Get-ChildItem .\logs -Recurse | Sort-Object Length -Descending | Select-Object -
 - Loki: http://localhost:3100
 - Kafka UI: http://localhost:${KAFKA_UI_PORT}
 
-Current scrape targets (`prometheus/prometheus.yml`): order-service (`host.docker.internal:8084`) and cart-service (`host.docker.internal:8086`). User, product, and inventory are **not** scraped. On Linux, `host.docker.internal` may not resolve; add `extra_hosts: ["host.docker.internal:host-gateway"]` or use the host IP.
+Current scrape targets (`prometheus/prometheus.yml`): all seven services plus Prometheus itself, addressed as `host.docker.internal:8081` (user), `8082` (inventory), `8083` (product), `8084` (order), `8085` (payment), `8086` (cart), `8087` (notification) and `localhost:9090`. The `prometheus` Compose service sets `extra_hosts: ["host.docker.internal:host-gateway"]`, so the targets resolve on Linux as well as Docker Desktop.
+
+Each service must leave `/actuator/prometheus` unauthenticated or the scrape returns 401 and the target shows as down; the five services with Spring Security (user, product, inventory, order, cart) list it in `SecurityConfig` alongside `health` and `info`. Check a single target by hand with `curl -s localhost:8083/actuator/prometheus | head`.
 
 Useful PromQL:
 
@@ -259,7 +261,7 @@ rate(http_server_requests_seconds_count[5m])
 sum by (status) (rate(order_status_updated_total[5m]))
 ```
 
-Grafana has no provisioned dashboards in the repository; any dashboards are manual and not reproducible.
+Grafana is provisioned from the repository: `monitoring/grafana/provisioning` defines the Prometheus and Loki datasources (fixed uids, so panels never need remapping) and `monitoring/grafana/dashboards/nexgen-saga.json` is loaded as the **NexGen — Services & Checkout Saga** dashboard. A dashboard edited in the UI is lost on the next container recreate; edit the JSON and commit it instead. The host port is `GRAFANA_PORT` (default `3000`), which is `3001` in the local `.env` because 3000 is taken on the development machine.
 
 ---
 

@@ -58,8 +58,10 @@ class PaymentServiceTest {
 
         paymentService.authorize("ORD-1", "user1", BigDecimal.valueOf(42.50), "EUR", "corr-1");
 
+        // Charged first, then persisted exactly once: saving a PENDING row and updating it
+        // afterwards made the second save re-insert and hit uk_payments_order.
         ArgumentCaptor<Payment> saved = ArgumentCaptor.forClass(Payment.class);
-        verify(paymentRepository, org.mockito.Mockito.times(2)).save(saved.capture());
+        verify(paymentRepository, org.mockito.Mockito.times(1)).save(saved.capture());
         assertEquals(PaymentStatus.AUTHORIZED, saved.getValue().getStatus());
         verify(outboxService).enqueue(anyString(), eq("PAYMENT"), eq("ORD-1"), eq("payment-authorized"),
                 eq("1.0"), eq("payment-service"), eq("corr-1"), any(), any());
@@ -72,7 +74,7 @@ class PaymentServiceTest {
         paymentService.authorize("ORD-2", "user1", BigDecimal.valueOf(42.99), "EUR", null);
 
         ArgumentCaptor<Payment> saved = ArgumentCaptor.forClass(Payment.class);
-        verify(paymentRepository, org.mockito.Mockito.times(2)).save(saved.capture());
+        verify(paymentRepository, org.mockito.Mockito.times(1)).save(saved.capture());
         assertEquals(PaymentStatus.FAILED, saved.getValue().getStatus());
         verify(outboxService).enqueue(anyString(), eq("PAYMENT"), eq("ORD-2"), eq("payment-failed"),
                 eq("1.0"), eq("payment-service"), any(), any(), any());

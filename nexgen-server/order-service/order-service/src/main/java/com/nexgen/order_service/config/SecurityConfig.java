@@ -97,7 +97,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info", "/error",
+                        .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus", "/error",
                                 "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/v1/orders/*/status")
                         .hasAnyRole("ADMIN", "INTERNAL")

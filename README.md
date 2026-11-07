@@ -34,7 +34,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 - **API gateway**: Kong 3.5, **Postgres-backed** (declarative DB-less mode is deliberately not used), configured idempotently by `kong-automation/setup-all.sh`
 - **Email**: Mailpit (SMTP `1025`, web UI `8025`) — no external provider, no credentials
 - **Payments**: in-process simulator behind a `PaymentGateway` port
-- **Observability**: Spring Boot Actuator and Micrometer in all seven services; Prometheus/Grafana coverage is partial
+- **Observability**: Actuator and Micrometer in all seven services, Prometheus scraping every one of them, and Grafana dashboards plus Loki log shipping provisioned from the repository
 - **Resilience**: Resilience4j in cart-service; every service uses a transactional outbox with an at-least-once publisher
 - **DevOps**: Docker Compose for infrastructure, a multi-stage Dockerfile per service, and GitHub Actions CI that tests every module and runs the E2E suite
 
@@ -99,7 +99,7 @@ Every service has its own SQL Server database (`userdb`, `productdb`, `inventory
 ## 📊 Monitoring & Observability
 
 - Actuator is present in all seven services; `/actuator/health` is what the end-to-end readiness check polls, and `liveness`/`readiness` groups are enabled.
-- Prometheus scrapes **all seven services** plus itself (`prometheus/prometheus.yml`). Every service exposes Micrometer metrics at `/actuator/prometheus`.
+- Prometheus scrapes **all seven services** plus itself (`prometheus/prometheus.yml`). Every service exposes Micrometer metrics at `/actuator/prometheus`, and that path is explicitly permitted in each `SecurityConfig` — without it the scrape gets a 401 and the target is reported down, while `/actuator/metrics` stays behind authentication.
 - Grafana is provisioned from the repository (`monitoring/grafana`): Prometheus and Loki datasources plus the **NexGen — Services & Checkout Saga** dashboard (services up, request rate, p95 latency, 5xx rate, JVM heap, order-service logs). Nothing is clicked in by hand.
 - Loki/Promtail tail `logs/<service>/application.log` for all seven services and Kong, but there is no retention policy.
 - Logs are structured JSON carrying a `correlationId`, and the gateway echoes it as `X-Correlation-Id`, so one checkout can be followed across services by that id.
@@ -230,7 +230,7 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 - **Payments are simulated.** No PSP, no real settlement; the `.99` decline rule is the only failure mode.
 - **Kafka is PLAINTEXT, Redis has no auth, SQL Server uses `sa`** in the local Compose setup. Acceptable locally, never in production.
 - `JWT_SECRET` must be at least 32 bytes and identical across services; the example value must never ship.
-- Prometheus scrapes cart and order only; Grafana has no provisioned dashboards.
+- Monitoring keeps no history and raises no alerts: Prometheus retention and Loki retention are whatever the containers default to, and there are no alert rules or notification channels, so nobody is paged when the stack misbehaves.
 - Swagger is public in the HTTP services and documents auth only for user-service.
 
 **No production deployment should be attempted while these hold.**
