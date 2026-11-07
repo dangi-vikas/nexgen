@@ -23,6 +23,7 @@ NexGen is a learning-oriented e-commerce backend built with Spring Boot, SQL Ser
 - [`docs/PRODUCTION_READINESS_AUDIT.md`](docs/PRODUCTION_READINESS_AUDIT.md) — findings and remediation plan.
 - [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATION_ROADMAP.md) — batch sequence and acceptance criteria.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — threat model and security standards.
+- [`web/README.md`](web/README.md) — Northleaf storefront: setup, environment, routes and data adapter.
 
 ## 🔧 Technologies Used
 
