@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import { PageMeta } from '@/components/ui/PageMeta';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { LeafSprig, PageBotanicals } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { pharmacists } from '@/lib/mock';
 
 const services = [
@@ -73,47 +75,54 @@ export function PharmacistsPage() {
         description="Book time with a licensed NexGen pharmacist for medication reviews, skin, sleep and travel health."
       />
 
-      <section className="noise border-b border-line py-10 sm:py-14">
+      <section className="page-hero noise py-10 sm:py-14">
+        <PageBotanicals />
         <div className="container-page">
           <Breadcrumbs items={[{ label: 'Pharmacists' }]} />
           <div className="mt-6 grid items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
-            <div>
-              <p className="eyebrow text-clay-dark">
-                <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
-                Pharmacist care
-              </p>
-              <h1 className="display mt-4 text-[2.7rem] leading-[1] sm:text-[3.8rem]">
-                A pharmacist
-                <br />
-                in your <span className="serif text-forest">corner.</span>
-              </h1>
-              <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-muted">
-                Not a chatbot, not a leaflet. A registered pharmacist who knows your history and has
-                time to talk. Book a call, a video chat or a quiet corner of the shop.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <a href="#book" className="btn btn-primary">
-                  Book a consultation
-                  <ArrowRight className="size-4" aria-hidden="true" />
-                </a>
-                <a href="tel:+14155550134" className="btn btn-outline">
-                  <Phone className="size-4" aria-hidden="true" />
-                  (415) 555-0134
-                </a>
+            <Reveal variant="left">
+              <div>
+                <p className="eyebrow text-clay-dark">
+                  <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
+                  Pharmacist care
+                </p>
+                <h1 className="display mt-4 text-[2.7rem] leading-[1] sm:text-[3.8rem]">
+                  A pharmacist
+                  <br />
+                  in your <span className="serif text-forest">corner.</span>
+                </h1>
+                <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-muted">
+                  Not a chatbot, not a leaflet. A registered pharmacist who knows your history and
+                  has time to talk. Book a call, a video chat or a quiet corner of the shop.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <a href="#book" className="btn btn-primary">
+                    Book a consultation
+                    <ArrowRight className="size-4" aria-hidden="true" />
+                  </a>
+                  <a href="tel:+14155550134" className="btn btn-outline">
+                    <Phone className="size-4" aria-hidden="true" />
+                    (415) 555-0134
+                  </a>
+                </div>
+                <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px] text-muted">
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="size-4 text-forest" aria-hidden="true" />
+                    Registered pharmacists
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="size-4 text-forest" aria-hidden="true" />
+                    Seven days a week
+                  </span>
+                </div>
               </div>
-              <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12px] text-muted">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="size-4 text-forest" aria-hidden="true" />
-                  Registered pharmacists
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Clock className="size-4 text-forest" aria-hidden="true" />
-                  Seven days a week
-                </span>
-              </div>
-            </div>
+            </Reveal>
 
-            <div className="relative mx-auto w-full max-w-[520px]">
+            <Reveal
+              variant="right"
+              delay={100}
+              className="relative mx-auto w-full max-w-[520px]"
+            >
               <div className="organic-mask absolute inset-0 translate-x-4 translate-y-4 bg-sage-deep/40" aria-hidden="true" />
               <div className="organic-mask relative aspect-[4/4.2] overflow-hidden bg-sage">
                 <img
@@ -125,14 +134,21 @@ export function PharmacistsPage() {
                   className="size-full object-cover object-[62%_48%]"
                 />
                 <div className="grain-overlay absolute inset-0" aria-hidden="true" />
-                <div className="absolute inset-x-6 bottom-6 text-cream">
+                <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-transparent to-transparent" aria-hidden="true" />
+                <div className="absolute inset-x-8 bottom-14 text-cream">
                   <p className="serif text-[1.4rem] leading-tight">“Bring the whole list. We’ll go through it.”</p>
                   <p className="mt-2 text-[9px] font-bold uppercase tracking-[0.18em] text-cream/65">
                     Amara Osei · Lead pharmacist
                   </p>
                 </div>
               </div>
-            </div>
+              <div className="pointer-events-none absolute -left-7 -top-7 z-10 h-28 w-20 text-forest/20">
+                <LeafSprig className="leaf-sway size-full" />
+              </div>
+              <div className="pointer-events-none absolute -bottom-9 -right-5 z-10 h-36 w-24 rotate-180 text-forest/15">
+                <LeafSprig className="leaf-sway-slow size-full" />
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>

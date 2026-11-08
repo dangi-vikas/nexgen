@@ -3,6 +3,8 @@ import { ChevronDown, SlidersHorizontal, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { PageMeta } from '@/components/ui/PageMeta';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { PageBotanicals } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { ProductCard } from '@/components/product/ProductCard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { categories } from '@/lib/mock';
@@ -257,27 +259,30 @@ export function ShopPage() {
         description="Browse pharmacist-curated skin, supplements, herbal remedies and everyday essentials."
       />
 
-      <section className="border-b border-line bg-paper/50 py-10 sm:py-12">
+      <section className="page-hero py-10 sm:py-12">
+        <PageBotanicals />
         <div className="container-page">
           <Breadcrumbs items={[{ label: 'Shop' }]} />
-          <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="eyebrow text-clay-dark">
-                <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
-                The shelf
-              </p>
-              <h1 className="display mt-3 text-[2.5rem] sm:text-[3.3rem]">
-                Everyday care, <span className="serif text-forest">considered.</span>
-              </h1>
-              <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed text-muted">
-                A small, deliberate range chosen by our pharmacists. If it is here, we can tell you
-                why.
+          <Reveal>
+            <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="eyebrow text-clay-dark">
+                  <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
+                  The shelf
+                </p>
+                <h1 className="display mt-3 text-[2.5rem] sm:text-[3.3rem]">
+                  Everyday care, <span className="serif text-forest">considered.</span>
+                </h1>
+                <p className="mt-3 max-w-xl text-[14.5px] leading-relaxed text-muted">
+                  A small, deliberate range chosen by our pharmacists. If it is here, we can tell
+                  you why.
+                </p>
+              </div>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
+                {filtered.length} {filtered.length === 1 ? 'product' : 'products'}
               </p>
             </div>
-            <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">
-              {filtered.length} {filtered.length === 1 ? 'product' : 'products'}
-            </p>
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -354,7 +359,9 @@ export function ShopPage() {
               {filtered.length > 0 ? (
                 <div className="grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-5 md:grid-cols-3">
                   {filtered.map((product, index) => (
-                    <ProductCard key={product.id} product={product} priority={index < 3} />
+                    <Reveal key={product.id} delay={(index % 3) * 55} variant="zoom">
+                      <ProductCard product={product} priority={index < 3} />
+                    </Reveal>
                   ))}
                 </div>
               ) : (

@@ -4,6 +4,30 @@ interface BotanicalProps {
   className?: string;
 }
 
+interface PageBotanicalsProps extends BotanicalProps {
+  tone?: 'light' | 'dark';
+}
+
+export function PageBotanicals({ className, tone = 'light' }: PageBotanicalsProps) {
+  return (
+    <div
+      className={cn(
+        'pointer-events-none absolute inset-0 -z-10 overflow-hidden',
+        tone === 'dark' ? 'text-cream/15' : 'text-forest/10',
+        className,
+      )}
+      aria-hidden="true"
+    >
+      <div className="absolute -right-8 -top-10 h-52 w-32">
+        <LeafSprig className="leaf-sway-slow size-full" />
+      </div>
+      <div className="absolute -left-9 bottom-0 h-36 w-24 rotate-180">
+        <LeafSprig className="leaf-sway size-full" />
+      </div>
+    </div>
+  );
+}
+
 export function LeafSprig({ className }: BotanicalProps) {
   return (
     <svg

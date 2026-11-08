@@ -2,6 +2,8 @@ import { ArrowLeft, ArrowRight, Clock } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import { PageMeta } from '@/components/ui/PageMeta';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { LeafSprig, PageBotanicals } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { articles } from '@/lib/mock';
 import { formatDate } from '@/lib/utils';
 
@@ -37,7 +39,8 @@ export function ArticlePage() {
       />
 
       <article>
-        <header className="border-b border-line bg-sage/25 py-9 sm:py-12">
+        <header className="page-hero py-9 sm:py-12">
+          <PageBotanicals />
           <div className="container-page">
             <Breadcrumbs
               items={[
@@ -45,34 +48,44 @@ export function ArticlePage() {
                 { label: article.title },
               ]}
             />
-            <div className="mt-6 max-w-3xl">
-              <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-forest/85">
-                <span>{article.category}</span>
-                <span aria-hidden="true">·</span>
-                <span>{article.readTime}</span>
-                <span aria-hidden="true">·</span>
-                <span>{formatDate(article.date)}</span>
+            <Reveal>
+              <div className="mt-6 max-w-3xl">
+                <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-forest/85">
+                  <span>{article.category}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{article.readTime}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{formatDate(article.date)}</span>
+                </div>
+                <h1 className="display mt-4 text-[2.5rem] leading-[1.01] sm:text-[3.4rem]">
+                  {article.title}
+                </h1>
+                <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted">
+                  {article.excerpt}
+                </p>
               </div>
-              <h1 className="display mt-4 text-[2.5rem] leading-[1.01] sm:text-[3.4rem]">
-                {article.title}
-              </h1>
-              <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted">
-                {article.excerpt}
-              </p>
-            </div>
+            </Reveal>
           </div>
         </header>
 
         <div className="container-page py-8 sm:py-10">
-          <div className="aspect-[16/8.5] overflow-hidden rounded-[32px] bg-sage sm:aspect-[16/7]">
-            <img
-              src={article.image}
-              alt={article.title}
-              width={1600}
-              height={900}
-              className="size-full object-cover"
-            />
-          </div>
+          <Reveal variant="zoom" className="relative">
+            <div className="aspect-[16/8.5] overflow-hidden rounded-[32px] bg-sage sm:aspect-[16/7]">
+              <img
+                src={article.image}
+                alt={article.title}
+                width={1600}
+                height={900}
+                className="size-full object-cover"
+              />
+            </div>
+            <div className="pointer-events-none absolute -left-5 -top-5 h-24 w-16 text-forest/20">
+              <LeafSprig className="leaf-sway size-full" />
+            </div>
+            <div className="pointer-events-none absolute -bottom-6 -right-4 h-28 w-20 rotate-180 text-forest/15">
+              <LeafSprig className="leaf-sway-slow size-full" />
+            </div>
+          </Reveal>
 
           <div className="mx-auto mt-8 max-w-2xl sm:mt-10">
             {article.body.map((paragraph, index) => (

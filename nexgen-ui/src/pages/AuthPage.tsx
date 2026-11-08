@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { ArrowRight, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { PageMeta } from '@/components/ui/PageMeta';
+import { LeafSprig } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { api } from '@/lib/api';
 import { useUiStore } from '@/store/ui';
 
@@ -88,7 +90,7 @@ export function AuthPage() {
         description="Sign in to manage prescriptions, orders and delivery details."
       />
 
-      <div className="container-page py-8 sm:py-12">
+      <Reveal className="container-page py-8 sm:py-12" variant="zoom">
         <div className="grid overflow-hidden rounded-[36px] border border-line bg-paper lg:grid-cols-[1fr_0.92fr]">
           <div className="flex flex-col justify-center px-6 py-10 sm:px-10 sm:py-14 lg:px-14">
             <div className="mx-auto w-full max-w-sm">
@@ -268,9 +270,15 @@ export function AuthPage() {
                 Amara Osei · Lead pharmacist
               </p>
             </div>
+            <div className="pointer-events-none absolute -left-4 top-7 h-28 w-20 text-cream/25">
+              <LeafSprig className="leaf-sway size-full" />
+            </div>
+            <div className="pointer-events-none absolute -right-5 bottom-12 h-32 w-20 rotate-180 text-cream/20">
+              <LeafSprig className="leaf-sway-slow size-full" />
+            </div>
           </div>
         </div>
-      </div>
+      </Reveal>
     </>
   );
 }

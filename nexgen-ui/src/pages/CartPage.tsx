@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { ArrowRight, Check, Lock, ShoppingBag, ShieldCheck, Trash2, Truck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageMeta } from '@/components/ui/PageMeta';
+import { PageBotanicals } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { QuantityStepper } from '@/components/ui/QuantityStepper';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
@@ -50,22 +52,27 @@ export function CartPage() {
       />
 
       <div className="container-page py-10 sm:py-14">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="eyebrow text-clay-dark">Your order</p>
-            <h1 className="display mt-3 text-[2.5rem] sm:text-[3.2rem]">
-              Your bag
-              {itemCount > 0 ? (
-                <span className="ml-3 align-middle text-base font-semibold tracking-normal text-muted">
-                  ({itemCount} {itemCount === 1 ? 'item' : 'items'})
-                </span>
-              ) : null}
-            </h1>
-          </div>
-          <Link to="/shop" className="link-quiet">
-            Continue shopping
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
+        <div className="relative isolate">
+          <PageBotanicals />
+          <Reveal>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="eyebrow text-clay-dark">Your order</p>
+                <h1 className="display mt-3 text-[2.5rem] sm:text-[3.2rem]">
+                  Your bag
+                  {itemCount > 0 ? (
+                    <span className="ml-3 align-middle text-base font-semibold tracking-normal text-muted">
+                      ({itemCount} {itemCount === 1 ? 'item' : 'items'})
+                    </span>
+                  ) : null}
+                </h1>
+              </div>
+              <Link to="/shop" className="link-quiet">
+                Continue shopping
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+            </div>
+          </Reveal>
         </div>
 
         {lines.length === 0 ? (

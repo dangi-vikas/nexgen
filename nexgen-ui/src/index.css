@@ -324,6 +324,17 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .page-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-bottom: 1px solid var(--color-line);
+    background:
+      radial-gradient(ellipse 58% 120% at 100% 4%, rgba(220, 230, 218, 0.62) 0%, rgba(220, 230, 218, 0) 70%),
+      radial-gradient(ellipse 48% 110% at 0% 100%, rgba(247, 244, 236, 0.92) 0%, rgba(247, 244, 236, 0) 72%),
+      var(--color-paper);
+  }
+
   .noise {
     position: relative;
     isolation: isolate;

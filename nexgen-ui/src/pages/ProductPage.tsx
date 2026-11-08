@@ -14,6 +14,8 @@ import type { Product } from '@/lib/types';
 import { useProduct, useProducts } from '@/lib/queries';
 import { PageMeta } from '@/components/ui/PageMeta';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { LeafSprig } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { QuantityStepper } from '@/components/ui/QuantityStepper';
 import { StockBadge } from '@/components/ui/StockBadge';
 import { ProductCard } from '@/components/product/ProductCard';
@@ -86,19 +88,27 @@ function DetailView({ product }: { product: Product }) {
 
         <div className="mt-7 grid gap-10 lg:grid-cols-[1.02fr_0.98fr] lg:gap-14 xl:gap-20">
           <div className="self-start lg:sticky lg:top-28">
-            <div className="relative overflow-hidden rounded-[28px] bg-sage/50">
-              <img
-                src={product.gallery[activeImage] ?? product.image}
-                alt={`${product.name}, view ${activeImage + 1}`}
-                width={900}
-                height={1125}
-                className="w-full aspect-[4/4.6] object-cover"
-              />
-              {product.badge ? (
-                <span className="absolute left-4 top-4 rounded-full bg-cream/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.13em] text-forest">
-                  {product.badge}
-                </span>
-              ) : null}
+            <div className="relative">
+              <div className="relative overflow-hidden rounded-[28px] bg-sage/50">
+                <img
+                  src={product.gallery[activeImage] ?? product.image}
+                  alt={`${product.name}, view ${activeImage + 1}`}
+                  width={900}
+                  height={1125}
+                  className="w-full aspect-[4/4.6] object-cover"
+                />
+                {product.badge ? (
+                  <span className="absolute left-4 top-4 rounded-full bg-cream/95 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.13em] text-forest">
+                    {product.badge}
+                  </span>
+                ) : null}
+              </div>
+              <div className="pointer-events-none absolute -left-5 -top-5 h-24 w-16 text-forest/20">
+                <LeafSprig className="leaf-sway size-full" />
+              </div>
+              <div className="pointer-events-none absolute -bottom-5 -right-4 h-28 w-20 rotate-180 text-forest/15">
+                <LeafSprig className="leaf-sway-slow size-full" />
+              </div>
             </div>
             <div className="mt-3 grid grid-cols-4 gap-3">
               {product.gallery.map((image, index) => (
@@ -125,7 +135,7 @@ function DetailView({ product }: { product: Product }) {
             </div>
           </div>
 
-          <div className="pb-4">
+          <Reveal variant="right" delay={80} className="pb-4">
             <p className="eyebrow text-clay-dark">{product.category}</p>
             <h1 className="display mt-3 text-[2.3rem] leading-[1.02] sm:text-[2.9rem]">
               {product.name}
@@ -253,7 +263,7 @@ function DetailView({ product }: { product: Product }) {
                 — a real conversation, free of charge.
               </p>
             </div>
-          </div>
+          </Reveal>
         </div>
       </div>
 

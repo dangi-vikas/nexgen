@@ -1,6 +1,8 @@
 import { ChevronDown, Clock, Mail, MapPin, MessageCircle, Phone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageMeta } from '@/components/ui/PageMeta';
+import { PageBotanicals } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 
 const faqs = [
@@ -38,24 +40,27 @@ export function HelpPage() {
         description="Delivery, returns, prescriptions and privacy. Reach a NexGen pharmacist by phone, email or in person."
       />
 
-      <section className="border-b border-line bg-sage/30 py-10 sm:py-12">
+      <section className="page-hero py-10 sm:py-12">
+        <PageBotanicals />
         <div className="container-page">
           <Breadcrumbs items={[{ label: 'Help & contact' }]} />
-          <div className="mt-6 max-w-2xl">
-            <p className="eyebrow text-clay-dark">Help & contact</p>
-            <h1 className="display mt-3 text-[2.6rem] sm:text-[3.4rem]">
-              However we can <span className="serif text-forest">help.</span>
-            </h1>
-            <p className="mt-4 text-[15px] leading-relaxed text-muted">
-              A real person answers our phone during opening hours. For everything else, the answers
-              below cover most of it.
-            </p>
-          </div>
+          <Reveal>
+            <div className="mt-6 max-w-2xl">
+              <p className="eyebrow text-clay-dark">Help & contact</p>
+              <h1 className="display mt-3 text-[2.6rem] sm:text-[3.4rem]">
+                However we can <span className="serif text-forest">help.</span>
+              </h1>
+              <p className="mt-4 text-[15px] leading-relaxed text-muted">
+                A real person answers our phone during opening hours. For everything else, the
+                answers below cover most of it.
+              </p>
+            </div>
+          </Reveal>
         </div>
       </section>
 
       <section className="py-10 sm:py-14">
-        <div className="container-page grid items-start gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:gap-16">
+        <Reveal className="container-page grid items-start gap-10 lg:grid-cols-[1.2fr_0.8fr] lg:gap-16">
           <div>
             <h2 className="text-xl font-semibold tracking-[-0.03em]">Common questions</h2>
             <div className="mt-5 divide-y divide-line border-y border-line">
@@ -171,7 +176,7 @@ export function HelpPage() {
               </Link>
             </div>
           </aside>
-        </div>
+        </Reveal>
       </section>
     </>
   );

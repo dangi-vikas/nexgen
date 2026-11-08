@@ -13,6 +13,8 @@ import {
 import { Link } from 'react-router-dom';
 import { PageMeta } from '@/components/ui/PageMeta';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
+import { PageBotanicals } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { usePrescriptions } from '@/lib/queries';
 import { formatDate } from '@/lib/utils';
 
@@ -67,39 +69,42 @@ export function PrescriptionsPage() {
         description="Upload a prescription, transfer from another pharmacy or request a repeat. Reviewed by licensed pharmacists."
       />
 
-      <section className="noise border-b border-line bg-sage/35 py-10 sm:py-14">
+      <section className="page-hero noise py-10 sm:py-14">
+        <PageBotanicals />
         <div className="container-page">
           <Breadcrumbs items={[{ label: 'Prescriptions' }]} />
-          <div className="mt-6 grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-            <div>
-              <p className="eyebrow text-clay-dark">
-                <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
-                Prescriptions
-              </p>
-              <h1 className="display mt-4 text-[2.6rem] leading-[1.01] sm:text-[3.6rem]">
-                Prescriptions,
-                <br />
-                without the <span className="serif text-forest">runaround.</span>
-              </h1>
-              <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-muted">
-                Send us a photo, transfer from another pharmacy, or ask your prescriber to send it
-                directly. A licensed pharmacist reviews every order.
-              </p>
+          <Reveal>
+            <div className="mt-6 grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
+              <div>
+                <p className="eyebrow text-clay-dark">
+                  <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
+                  Prescriptions
+                </p>
+                <h1 className="display mt-4 text-[2.6rem] leading-[1.01] sm:text-[3.6rem]">
+                  Prescriptions,
+                  <br />
+                  without the <span className="serif text-forest">runaround.</span>
+                </h1>
+                <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-muted">
+                  Send us a photo, transfer from another pharmacy, or ask your prescriber to send it
+                  directly. A licensed pharmacist reviews every order.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-line bg-paper/80 p-4 text-[12.5px] leading-relaxed text-muted">
+                <p className="flex items-center gap-2 font-semibold text-ink">
+                  <Clock className="size-4 text-forest" aria-hidden="true" />
+                  Need it today?
+                </p>
+                <p className="mt-1.5">
+                  Call the pharmacy on{' '}
+                  <a href="tel:+14155550134" className="font-semibold text-forest">
+                    (415) 555-0134
+                  </a>{' '}
+                  before 2pm and we’ll do our best to have it ready by closing.
+                </p>
+              </div>
             </div>
-            <div className="rounded-2xl border border-line bg-paper/80 p-4 text-[12.5px] leading-relaxed text-muted">
-              <p className="flex items-center gap-2 font-semibold text-ink">
-                <Clock className="size-4 text-forest" aria-hidden="true" />
-                Need it today?
-              </p>
-              <p className="mt-1.5">
-                Call the pharmacy on{' '}
-                <a href="tel:+14155550134" className="font-semibold text-forest">
-                  (415) 555-0134
-                </a>{' '}
-                before 2pm and we’ll do our best to have it ready by closing.
-              </p>
-            </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 

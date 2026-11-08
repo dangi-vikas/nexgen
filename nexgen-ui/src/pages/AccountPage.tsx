@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { PageMeta } from '@/components/ui/PageMeta';
+import { PageBotanicals } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { useUiStore } from '@/store/ui';
 import { currentUser } from '@/lib/mock';
 import { useOrders, usePrescriptions, useProducts } from '@/lib/queries';
@@ -516,44 +518,47 @@ export function AccountPage() {
   return (
     <>
       <PageMeta title="Your account — NexGen Pharmacy" />
-      <section className="border-b border-line bg-paper/50 py-10 sm:py-12">
+      <section className="page-hero py-10 sm:py-12">
+        <PageBotanicals />
         <div className="container-page">
-          <p className="eyebrow text-clay-dark">Your account</p>
-          <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
-            <h1 className="display text-[2.4rem] sm:text-[3rem]">
-              Hello, <span className="serif text-forest">{user.name.split(' ')[0]}.</span>
-            </h1>
-            <div className="flex items-center gap-4 text-[12px]">
-              <button
-                type="button"
-                onClick={() => {
-                  signOut();
-                  navigate('/');
-                }}
-                className="font-semibold text-muted hover:text-ink"
-              >
-                Sign out
-              </button>
+          <Reveal>
+            <p className="eyebrow text-clay-dark">Your account</p>
+            <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
+              <h1 className="display text-[2.4rem] sm:text-[3rem]">
+                Hello, <span className="serif text-forest">{user.name.split(' ')[0]}.</span>
+              </h1>
+              <div className="flex items-center gap-4 text-[12px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    signOut();
+                    navigate('/');
+                  }}
+                  className="font-semibold text-muted hover:text-ink"
+                >
+                  Sign out
+                </button>
+              </div>
             </div>
-          </div>
 
-          <nav className="mt-7 flex flex-wrap gap-1.5" aria-label="Account sections">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.id}
-                to={tab.href}
-                className={cn(
-                  'shrink-0 rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors',
-                  active === tab.id
-                    ? 'bg-forest text-cream'
-                    : 'border border-line bg-paper text-ink/70 hover:bg-sage/40',
-                )}
-                aria-current={active === tab.id ? 'page' : undefined}
-              >
-                {tab.label}
-              </Link>
-            ))}
-          </nav>
+            <nav className="mt-7 flex flex-wrap gap-1.5" aria-label="Account sections">
+              {tabs.map((tab) => (
+                <Link
+                  key={tab.id}
+                  to={tab.href}
+                  className={cn(
+                    'shrink-0 rounded-full px-4 py-2 text-[12.5px] font-semibold transition-colors',
+                    active === tab.id
+                      ? 'bg-forest text-cream'
+                      : 'border border-line bg-paper text-ink/70 hover:bg-sage/40',
+                  )}
+                  aria-current={active === tab.id ? 'page' : undefined}
+                >
+                  {tab.label}
+                </Link>
+              ))}
+            </nav>
+          </Reveal>
         </div>
       </section>
 

@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PageMeta } from '@/components/ui/PageMeta';
+import { PageBotanicals } from '@/components/ui/Botanical';
+import { Reveal } from '@/components/ui/Reveal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs';
 import { cartTotals, useCartStore, useCartSubtotal } from '@/store/cart';
@@ -232,11 +234,16 @@ export function CheckoutPage() {
 
       <div className="container-page py-8 sm:py-10">
         <Breadcrumbs items={[{ label: 'Bag', href: '/cart' }, { label: 'Checkout' }]} />
-        <div className="mt-6 max-w-2xl">
-          <p className="eyebrow text-clay-dark">Secure checkout</p>
-          <h1 className="display mt-3 text-[2.4rem] sm:text-[3rem]">
-            Almost <span className="serif text-forest">there.</span>
-          </h1>
+        <div className="relative isolate">
+          <PageBotanicals />
+          <Reveal>
+            <div className="mt-6 max-w-2xl">
+              <p className="eyebrow text-clay-dark">Secure checkout</p>
+              <h1 className="display mt-3 text-[2.4rem] sm:text-[3rem]">
+                Almost <span className="serif text-forest">there.</span>
+              </h1>
+            </div>
+          </Reveal>
         </div>
 
         <ol className="mt-7 flex items-center gap-2 sm:gap-4" aria-label="Checkout steps">
