@@ -6,6 +6,7 @@ import {
   Droplets,
   HeartPulse,
   Leaf,
+  MapPin,
   Moon,
   PackageCheck,
   Pill,
@@ -16,9 +17,11 @@ import {
   Sun,
   Truck,
   Upload,
+  Users,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { BotanicalFlower, LeafSprig } from '@/components/ui/Botanical';
 import { PageMeta } from '@/components/ui/PageMeta';
 import { Reveal } from '@/components/ui/Reveal';
 import { SectionHeading } from '@/components/ui/SectionHeading';
@@ -72,30 +75,176 @@ const featureSlugs = [
 
 const articleIds = ['a-2', 'a-3'];
 
-function Hero() {
+function SearchPanel() {
   const openSearch = useUiStore((state) => state.openSearch);
 
   return (
-    <section className="noise relative overflow-hidden pb-10 pt-8 sm:pb-14 sm:pt-12 lg:pb-16 lg:pt-14">
-      <div className="container-page">
-        <div className="grid items-center gap-10 lg:grid-cols-[1.02fr_0.98fr] lg:gap-16">
-          <div className="relative z-10">
-            <p className="eyebrow text-clay-dark">
+    <div className="rounded-[30px] border border-white/80 bg-paper/95 p-2 shadow-[0_32px_80px_-38px_rgba(16,35,28,0.62)] ring-1 ring-ink/[0.03] backdrop-blur-xl">
+      <div className="grid gap-1 md:grid-cols-[1.5fr_1fr_1fr_auto] md:items-stretch">
+        <button
+          type="button"
+          onClick={openSearch}
+          className="group flex items-center gap-3 rounded-[23px] px-4 py-3 text-left transition-colors hover:bg-sage/35"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-full bg-sage text-forest transition-colors group-hover:bg-forest group-hover:text-cream">
+            <Search className="size-[18px]" strokeWidth={1.8} aria-hidden="true" />
+          </span>
+          <span>
+            <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em] text-muted">
+              Search
+            </span>
+            <span className="mt-0.5 block text-[13.5px] font-semibold">
+              What can we help with?
+            </span>
+          </span>
+        </button>
+
+        <Link
+          to="/help#delivery"
+          className="group flex items-center gap-3 rounded-[23px] px-4 py-3 transition-colors hover:bg-sage/35 md:border-l md:border-line"
+        >
+          <Truck
+            className="size-4 shrink-0 text-forest transition-transform duration-300 group-hover:-translate-x-0.5"
+            strokeWidth={1.7}
+            aria-hidden="true"
+          />
+          <span>
+            <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em] text-muted">
+              Delivery
+            </span>
+            <span className="mt-0.5 block text-[13.5px] font-semibold">Free over $35</span>
+          </span>
+        </Link>
+
+        <Link
+          to="/pharmacists"
+          className="group flex items-center gap-3 rounded-[23px] px-4 py-3 transition-colors hover:bg-sage/35 md:border-l md:border-line"
+        >
+          <HeartPulse
+            className="size-4 shrink-0 text-forest transition-transform duration-300 group-hover:scale-110"
+            strokeWidth={1.7}
+            aria-hidden="true"
+          />
+          <span>
+            <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em] text-muted">
+              Consultation
+            </span>
+            <span className="mt-0.5 block text-[13.5px] font-semibold">Book a pharmacist</span>
+          </span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={openSearch}
+          className="btn btn-primary m-1 w-[calc(100%-0.5rem)] md:w-auto"
+        >
+          Find care
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AssuranceStrip() {
+  return (
+    <div className="mt-3 rounded-[28px] border border-line/70 bg-paper/90 p-2 shadow-[0_22px_56px_-42px_rgba(16,35,28,0.5)] sm:mt-4">
+      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
+        {assurances.map(({ icon: Icon, title, copy }, index) => (
+          <div
+            key={title}
+            className={`flex items-center gap-3.5 rounded-[22px] px-4 py-4 ${
+              index > 0 ? 'lg:border-l lg:border-line/70' : ''
+            }`}
+          >
+            <span className="grid size-11 shrink-0 place-items-center rounded-full bg-sage/60 text-forest">
+              <Icon className="size-5" strokeWidth={1.6} aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[13.5px] font-semibold tracking-[-0.01em]">{title}</p>
+              <p className="mt-0.5 text-[12px] leading-snug text-muted">{copy}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Hero() {
+  return (
+    <section className="relative isolate overflow-hidden bg-cream">
+      <div className="relative">
+        <img
+          src="/images/hero-pharmacy.jpg"
+          alt="A NexGen pharmacist preparing a prescription at the counter"
+          width={1600}
+          height={1067}
+          fetchPriority="high"
+          className="hero-image absolute inset-0 size-full object-cover object-[70%_44%] sm:object-[68%_44%]"
+        />
+        <div className="hero-wash absolute inset-0" aria-hidden="true" />
+        <div
+          className="absolute inset-0 bg-gradient-to-t from-forest/35 via-transparent to-ink/5"
+          aria-hidden="true"
+        />
+        <div className="grain-overlay absolute inset-0 opacity-40" aria-hidden="true" />
+
+        <div className="pointer-events-none absolute right-7 top-8 hidden grid-cols-4 gap-2 text-forest/25 sm:grid lg:right-12">
+          {Array.from({ length: 16 }).map((_, index) => (
+            <span key={index} className="size-1 rounded-full bg-current" />
+          ))}
+        </div>
+
+        <div className="container-page relative z-10 flex min-h-[630px] items-center pb-36 pt-14 sm:min-h-[680px] sm:pb-40 lg:min-h-[730px] lg:pb-44">
+          <div className="max-w-[620px]">
+            <p
+              className="eyebrow hero-rise text-clay-dark"
+              style={{ animationDelay: '80ms' }}
+            >
               <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
               Pharmacy, reimagined
             </p>
-            <h1 className="display mt-5 text-[clamp(3.15rem,7vw,5.5rem)]">
-              Feel better,
-              <br />
-              <span className="serif text-forest">every day.</span>
+            <h1 className="display mt-5 text-[clamp(3rem,7vw,5.45rem)]">
+              <span className="hero-rise block" style={{ animationDelay: '160ms' }}>
+                Feel better,
+              </span>
+              <span
+                className="hero-rise relative mt-1 inline-block pr-3"
+                style={{ animationDelay: '260ms' }}
+              >
+                <span className="serif text-forest">every day.</span>
+                <svg
+                  className="absolute -bottom-4 left-0 h-3.5 w-[95%] text-clay sm:-bottom-5"
+                  viewBox="0 0 300 16"
+                  preserveAspectRatio="none"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M3 11C77 3 220 2 297 8"
+                    stroke="currentColor"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    pathLength="1"
+                    className="draw-line"
+                  />
+                </svg>
+              </span>
             </h1>
-            <p className="mt-6 max-w-md text-[15.5px] leading-relaxed text-muted sm:text-base">
+            <p
+              className="hero-rise mt-7 max-w-md text-[15.5px] leading-relaxed text-ink/75 sm:text-base"
+              style={{ animationDelay: '360ms' }}
+            >
               Thoughtful pharmacy care, delivered. Prescriptions, considered essentials and honest
               advice from pharmacists who know your name.
             </p>
 
-            <div className="mt-7 flex flex-wrap items-center gap-3">
-              <Link to="/shop" className="btn btn-primary">
+            <div
+              className="hero-rise mt-7 flex flex-wrap items-center gap-3"
+              style={{ animationDelay: '450ms' }}
+            >
+              <Link to="/shop" className="btn btn-clay">
                 Shop essentials
                 <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
@@ -105,7 +254,10 @@ function Hero() {
               </Link>
             </div>
 
-            <div className="mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-muted">
+            <div
+              className="hero-rise mt-8 flex flex-wrap items-center gap-x-5 gap-y-2 text-[12.5px] text-muted"
+              style={{ animationDelay: '540ms' }}
+            >
               <span className="flex items-center gap-1.5">
                 <span className="flex" aria-hidden="true">
                   {Array.from({ length: 5 }).map((_, index) => (
@@ -119,113 +271,37 @@ function Hero() {
               <span>Independent since 1998</span>
             </div>
           </div>
-
-          <div className="relative mx-auto w-full max-w-[560px] lg:max-w-none">
-            <div
-              className="organic-mask absolute inset-0 translate-x-4 translate-y-5 bg-sage-deep/45"
-              aria-hidden="true"
-            />
-            <div className="organic-mask relative aspect-[4/4.3] overflow-hidden bg-sage">
-              <img
-                src="/images/pharmacy-consult.jpg"
-                alt="A NexGen pharmacist talking a customer through her options at the counter"
-                width={1600}
-                height={1067}
-                fetchPriority="high"
-                className="size-full object-cover object-[58%_48%]"
-              />
-              <div className="grain-overlay absolute inset-0" aria-hidden="true" />
-              <div className="absolute inset-x-6 bottom-5 flex items-end justify-between gap-4 text-cream sm:inset-x-8 sm:bottom-7">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cream/70">
-                    At the counter
-                  </p>
-                  <p className="mt-1 text-sm font-semibold tracking-[-0.01em]">
-                    Real people, seven days a week
-                  </p>
-                </div>
-                <span className="hidden rounded-full border border-cream/30 bg-ink/20 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-cream/85 backdrop-blur-sm sm:inline-block">
-                  Est. 1998
-                </span>
-              </div>
-            </div>
-            <div
-              className="absolute -right-3 top-8 size-20 rounded-full border border-forest/15 sm:size-28"
-              aria-hidden="true"
-            />
-            <span
-              className="absolute -right-1 top-16 size-3 rounded-full bg-clay sm:top-24"
-              aria-hidden="true"
-            />
-            <p
-              className="absolute -left-10 bottom-32 hidden -rotate-90 text-[9px] font-bold uppercase tracking-[0.32em] text-muted xl:block"
-              aria-hidden="true"
-            >
-              San Francisco · California
-            </p>
-          </div>
         </div>
 
-        <div className="mt-10 rounded-[26px] border border-line bg-paper p-2 shadow-[0_18px_50px_-24px_rgba(16,35,28,0.25)] sm:mt-12">
-          <div className="grid gap-1 md:grid-cols-[1.5fr_1fr_1fr_auto] md:items-stretch">
-            <button
-              type="button"
-              onClick={openSearch}
-              className="flex items-center gap-3 rounded-[20px] px-4 py-3 text-left transition-colors hover:bg-sage/35"
-            >
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-sage text-forest">
-                <Search className="size-[18px]" strokeWidth={1.8} aria-hidden="true" />
-              </span>
-              <span>
-                <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em] text-muted">
-                  Search
-                </span>
-                <span className="mt-0.5 block text-[13.5px] font-semibold">
-                  What can we help with?
-                </span>
-              </span>
-            </button>
-
-            <Link
-              to="/help#delivery"
-              className="flex items-center gap-3 rounded-[20px] px-4 py-3 transition-colors hover:bg-sage/35 md:border-l md:border-line"
-            >
-              <Truck className="size-4 shrink-0 text-forest" strokeWidth={1.7} aria-hidden="true" />
-              <span>
-                <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em] text-muted">
-                  Delivery
-                </span>
-                <span className="mt-0.5 block text-[13.5px] font-semibold">Free over $35</span>
-              </span>
-            </Link>
-
-            <Link
-              to="/pharmacists"
-              className="flex items-center gap-3 rounded-[20px] px-4 py-3 transition-colors hover:bg-sage/35 md:border-l md:border-line"
-            >
-              <HeartPulse
-                className="size-4 shrink-0 text-forest"
-                strokeWidth={1.7}
-                aria-hidden="true"
-              />
-              <span>
-                <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em] text-muted">
-                  Consultation
-                </span>
-                <span className="mt-0.5 block text-[13.5px] font-semibold">Book a pharmacist</span>
-              </span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={openSearch}
-              className="btn btn-primary m-1 w-[calc(100%-0.5rem)] md:w-auto"
-            >
-              Find care
-              <ArrowRight className="size-4" aria-hidden="true" />
-            </button>
-          </div>
+        <div className="pointer-events-none absolute -left-12 top-16 hidden h-56 w-36 text-forest/20 md:block">
+          <LeafSprig className="leaf-sway size-full" />
         </div>
+        <div className="pointer-events-none absolute -right-8 bottom-28 hidden h-48 w-28 text-forest/20 lg:block">
+          <LeafSprig className="leaf-sway-slow size-full" />
+        </div>
+
+        <div className="absolute bottom-24 right-6 z-10 hidden items-center gap-2.5 rounded-full border border-cream/30 bg-ink/20 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-cream/85 backdrop-blur-md lg:right-12 lg:flex">
+          <span className="size-1.5 rounded-full bg-clay" aria-hidden="true" />
+          Independent since 1998
+        </div>
+
+        <svg
+          className="absolute inset-x-0 bottom-0 z-10 h-16 w-full text-cream sm:h-20"
+          viewBox="0 0 1440 100"
+          preserveAspectRatio="none"
+          fill="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M0 52C218 94 431 24 722 41C1013 58 1227 97 1440 49V100H0V52Z"
+            fill="currentColor"
+          />
+        </svg>
+      </div>
+
+      <div className="container-page relative z-20 -mt-16 pb-8 sm:-mt-20 lg:-mt-24">
+        <SearchPanel />
+        <AssuranceStrip />
 
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 px-1 text-[12px] text-muted">
           <span className="font-semibold text-ink">Popular</span>
@@ -240,32 +316,12 @@ function Hero() {
   );
 }
 
-function AssuranceStrip() {
-  return (
-    <section className="border-y border-line bg-paper/55">
-      <div className="container-page grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-4">
-        {assurances.map(({ icon: Icon, title, copy }, index) => (
-          <div
-            key={title}
-            className={`flex items-start gap-3.5 py-6 sm:px-5 lg:px-7 ${
-              index > 0 ? 'border-t border-line sm:border-t-0 sm:border-l' : ''
-            } ${index === 2 ? 'sm:border-l-0 lg:border-l' : ''} ${index === 1 ? 'sm:pl-0 lg:pl-7' : ''}`}
-          >
-            <Icon className="mt-0.5 size-5 shrink-0 text-forest" strokeWidth={1.6} aria-hidden="true" />
-            <div>
-              <p className="text-[13.5px] font-semibold tracking-[-0.01em]">{title}</p>
-              <p className="mt-0.5 text-[12px] leading-snug text-muted">{copy}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function Goals() {
   return (
-    <section id="goals" className="scroll-mt-28 py-16 sm:py-20 lg:py-24">
+    <section id="goals" className="relative scroll-mt-28 py-16 sm:py-20 lg:py-24">
+      <div className="pointer-events-none absolute right-0 top-10 hidden h-52 w-32 text-forest/15 lg:block">
+        <LeafSprig className="leaf-sway-slow size-full" />
+      </div>
       <div className="container-page">
         <Reveal>
           <SectionHeading
@@ -280,7 +336,7 @@ function Goals() {
           />
         </Reveal>
 
-        <Reveal delay={80}>
+        <Reveal delay={90}>
           <div className="mt-10 flex gap-4 overflow-x-auto pb-3 scrollbar-hide sm:grid sm:grid-cols-4 sm:gap-x-4 sm:gap-y-7 sm:overflow-visible lg:grid-cols-8">
             {categories.map((category) => {
               const Icon = iconMap[category.icon];
@@ -290,7 +346,7 @@ function Goals() {
                   to={`/shop?category=${category.id}`}
                   className="group flex w-[92px] shrink-0 flex-col items-center text-center sm:w-auto"
                 >
-                  <span className="grid size-[76px] place-items-center rounded-full border border-line bg-paper text-forest transition-all duration-300 group-hover:-translate-y-1 group-hover:border-forest group-hover:bg-forest group-hover:text-cream group-hover:shadow-[0_12px_30px_-12px_rgba(27,67,52,0.55)] sm:size-[84px]">
+                  <span className="grid size-[76px] place-items-center rounded-full border border-sage-deep/50 bg-sage/50 text-forest transition-all duration-300 group-hover:-translate-y-1 group-hover:border-forest group-hover:bg-forest group-hover:text-cream group-hover:shadow-[0_12px_30px_-12px_rgba(27,67,52,0.55)] sm:size-[84px]">
                     <Icon className="size-6" strokeWidth={1.5} aria-hidden="true" />
                   </span>
                   <span className="mt-3 text-[13px] font-semibold tracking-[-0.01em]">
@@ -314,7 +370,10 @@ function ShelfFavourites() {
     .filter((product): product is NonNullable<typeof product> => Boolean(product));
 
   return (
-    <section className="pb-16 sm:pb-20 lg:pb-24">
+    <section className="relative isolate overflow-hidden pb-16 sm:pb-20 lg:pb-24">
+      <div className="pointer-events-none absolute -left-16 top-1/3 hidden h-72 w-44 text-forest/10 xl:block">
+        <LeafSprig className="leaf-sway-slow size-full" />
+      </div>
       <div className="container-page">
         <Reveal>
           <SectionHeading
@@ -330,7 +389,7 @@ function ShelfFavourites() {
         </Reveal>
         <div className="mt-10 grid grid-cols-2 gap-x-4 gap-y-10 sm:gap-x-5 md:grid-cols-4">
           {featured.map((product, index) => (
-            <Reveal key={product.id} delay={index * 70}>
+            <Reveal key={product.id} delay={index * 80} variant="zoom">
               <ProductCard product={product} priority={index < 2} />
             </Reveal>
           ))}
@@ -342,24 +401,42 @@ function ShelfFavourites() {
 
 function Story() {
   return (
-    <section id="story" className="scroll-mt-28 border-t border-line py-16 sm:py-20 lg:py-24">
-      <div className="container-page grid items-center gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
-        <Reveal>
+    <section
+      id="story"
+      className="relative scroll-mt-28 overflow-hidden border-t border-line py-16 sm:py-20 lg:py-24"
+    >
+      <div className="pointer-events-none absolute -right-14 top-20 hidden h-72 w-44 text-forest/10 lg:block">
+        <LeafSprig className="leaf-sway size-full" />
+      </div>
+      <div className="container-page grid items-center gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:gap-16">
+        <Reveal variant="left">
           <div className="relative">
             <div
-              className="absolute -bottom-4 -left-4 h-[85%] w-[85%] rounded-[36px] border border-forest/12"
+              className="absolute -inset-3 -rotate-2 rounded-[44px] border border-forest/12"
               aria-hidden="true"
             />
-            <div className="relative aspect-[5/4.4] overflow-hidden rounded-[36px] bg-sage">
+            <div className="relative aspect-[5/4.4] overflow-hidden rounded-[38px] bg-sage shadow-soft">
               <img
-                src="/images/hero-pharmacy.jpg"
-                alt="A pharmacist at NexGen reaching for a preparation on the wooden shelves"
-                width={1800}
-                height={1200}
+                src="/images/pharmacy-consult.jpg"
+                alt="A NexGen pharmacist talking a customer through her options at the counter"
+                width={1600}
+                height={1067}
                 loading="lazy"
-                className="size-full object-cover object-[62%_45%]"
+                className="size-full object-cover object-[58%_48%] transition-transform duration-[1200ms] ease-out hover:scale-[1.025]"
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-t from-ink/25 via-transparent to-transparent"
+                aria-hidden="true"
               />
             </div>
+
+            <div className="absolute -left-9 -top-10 h-44 w-28 text-forest/35">
+              <LeafSprig className="leaf-sway size-full" />
+            </div>
+            <div className="absolute -bottom-12 -right-7 h-48 w-32 rotate-180 text-forest/25">
+              <LeafSprig className="leaf-sway-slow size-full" />
+            </div>
+
             <div className="absolute -bottom-5 right-5 rounded-2xl border border-line bg-paper px-4 py-3 shadow-soft sm:right-8">
               <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
                 Independently owned
@@ -369,14 +446,15 @@ function Story() {
           </div>
         </Reveal>
 
-        <Reveal delay={100}>
+        <Reveal delay={100} variant="right">
           <p className="eyebrow text-clay-dark">
             <span className="inline-block h-px w-7 bg-clay-dark/70" aria-hidden="true" />
             Our story
           </p>
           <h2 className="display mt-4 text-[2rem] leading-[1.03] sm:text-[2.7rem] lg:text-[3rem]">
             A pharmacy that still
-            <br className="hidden sm:block" /> knows <span className="serif text-forest">your name.</span>
+            <br className="hidden sm:block" /> knows{' '}
+            <span className="serif text-forest">your name.</span>
           </h2>
           <p className="mt-5 max-w-lg text-[15px] leading-relaxed text-muted">
             NexGen began behind a single wooden counter in 1998. Three decades later the shelves
@@ -408,10 +486,10 @@ function Story() {
 
 function Journal() {
   return (
-    <section id="journal" className="scroll-mt-28 pb-16 sm:pb-20 lg:pb-24">
+    <section id="journal" className="relative scroll-mt-28 pb-16 sm:pb-20 lg:pb-24">
       <div className="container-page">
-        <Reveal>
-          <div className="noise relative overflow-hidden rounded-[36px] bg-sage p-6 sm:p-9 lg:p-12">
+        <Reveal variant="zoom">
+          <div className="noise relative overflow-hidden rounded-[38px] border border-white/45 bg-sage/80 p-6 sm:p-9 lg:p-12">
             <svg
               className="pointer-events-none absolute -right-10 -top-10 size-[300px] text-forest/10"
               viewBox="0 0 200 200"
@@ -425,6 +503,13 @@ function Journal() {
               />
               <path d="M42 184C64 129 101 91 154 63" stroke="currentColor" strokeWidth="1" />
             </svg>
+
+            <div className="pointer-events-none absolute -right-9 -top-10 h-52 w-32 text-forest/20">
+              <LeafSprig className="leaf-sway size-full" />
+            </div>
+            <div className="pointer-events-none absolute -bottom-12 -left-7 h-44 w-28 rotate-180 text-forest/15">
+              <LeafSprig className="leaf-sway-slow size-full" />
+            </div>
 
             <div className="relative grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:gap-14">
               <div className="lg:pt-2">
@@ -448,15 +533,23 @@ function Journal() {
                   const article = articles.find((item) => item.id === id);
                   if (!article) return null;
                   return (
-                    <Link key={article.id} to={`/journal/${article.slug}`} className="group flex flex-col">
-                      <div className="aspect-[4/3] overflow-hidden rounded-2xl bg-cream-deep">
+                    <Link
+                      key={article.id}
+                      to={`/journal/${article.slug}`}
+                      className="group flex flex-col"
+                    >
+                      <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-cream-deep">
                         <img
                           src={article.image}
                           alt={article.title}
                           width={800}
                           height={600}
                           loading="lazy"
-                          className="size-full object-cover transition-transform duration-700 ease-[cubic-bezier(.22,1,.36,1)] group-hover:scale-[1.04]"
+                          className="size-full object-cover transition-transform duration-700 ease-[cubic-bezier(.22,1,.36,1)] group-hover:scale-[1.045]"
+                        />
+                        <div
+                          className="absolute inset-0 bg-gradient-to-t from-ink/20 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+                          aria-hidden="true"
                         />
                       </div>
                       <div className="mt-3.5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-forest/85">
@@ -484,23 +577,30 @@ function Journal() {
 
 function OfferBanner() {
   return (
-    <section className="pb-16 sm:pb-20 lg:pb-24">
+    <section className="relative pb-16 sm:pb-20 lg:pb-24">
       <div className="container-page">
-        <Reveal>
-          <div className="relative overflow-hidden rounded-[36px] bg-forest">
-            <img
-              src="/images/herbs-dark.jpg"
-              alt=""
-              width={1800}
-              height={1200}
-              loading="lazy"
-              className="absolute inset-0 size-full object-cover opacity-75"
-            />
-            <div
-              className="absolute inset-0 bg-gradient-to-r from-forest via-forest/88 to-forest/15"
-              aria-hidden="true"
-            />
-            <div className="relative max-w-xl px-7 py-12 text-cream sm:px-10 sm:py-16 lg:px-14 lg:py-20">
+        <Reveal variant="zoom">
+          <div className="relative grid overflow-hidden rounded-[40px] bg-forest shadow-lift lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="relative min-h-[280px] overflow-hidden sm:min-h-[340px] lg:min-h-full">
+              <img
+                src="/images/herbs-flatlay.jpg"
+                alt="Dried herbs and a stone mortar on a workbench"
+                width={1600}
+                height={1067}
+                loading="lazy"
+                className="absolute inset-0 size-full object-cover"
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-r from-forest/10 via-forest/20 to-forest lg:to-forest/95"
+                aria-hidden="true"
+              />
+              <div
+                className="absolute inset-0 bg-gradient-to-t from-forest/70 via-transparent to-transparent lg:hidden"
+                aria-hidden="true"
+              />
+            </div>
+
+            <div className="relative z-10 flex flex-col justify-center px-7 py-12 text-cream sm:px-10 sm:py-16 lg:px-14 lg:py-20">
               <p className="eyebrow text-sage">
                 <span className="inline-block h-px w-7 bg-sage/60" aria-hidden="true" />
                 A small welcome
@@ -520,8 +620,16 @@ function OfferBanner() {
                   <ArrowUpRight className="size-4" aria-hidden="true" />
                 </Link>
                 <span className="rounded-full border border-cream/25 px-3.5 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-cream/70">
-                  Code NEWLEAF
+                  Code WELCOME10
                 </span>
+              </div>
+            </div>
+
+            <div className="pointer-events-none absolute -bottom-10 right-[49%] z-0 hidden h-56 w-56 lg:block">
+              <BotanicalFlower className="leaf-sway-slow absolute bottom-0 right-0 h-36 w-36 text-clay sm:h-44 sm:w-44" />
+              <BotanicalFlower className="absolute right-24 top-4 h-20 w-20 rotate-12 opacity-80 sm:right-28" />
+              <div className="absolute -left-12 bottom-2 h-40 w-24 text-forest/45">
+                <LeafSprig className="leaf-sway size-full" />
               </div>
             </div>
           </div>
@@ -533,34 +641,40 @@ function OfferBanner() {
 
 function Stats() {
   const stats = [
-    { value: '28', unit: 'years', label: 'On the same high street' },
-    { value: '40k', unit: 'patients', label: 'Cared for, and counting' },
-    { value: '4.9', unit: '/ 5', label: 'Average patient rating' },
-    { value: '24/7', unit: 'advice', label: 'A pharmacist on the line' },
+    { icon: MapPin, value: '28', unit: 'years', label: 'On the same high street' },
+    { icon: Users, value: '40k', unit: 'patients', label: 'Cared for, and counting' },
+    { icon: Star, value: '4.9', unit: '/ 5', label: 'Average patient rating' },
+    { icon: Clock, value: '24/7', unit: 'advice', label: 'A pharmacist on the line' },
   ];
 
   return (
     <section className="border-y border-line bg-paper/60">
-      <div className="container-page grid grid-cols-2 gap-0 py-10 sm:py-12 lg:grid-cols-4">
-        {stats.map((stat, index) => (
-          <div
-            key={stat.label}
-            className={`px-4 py-5 sm:px-6 lg:px-8 ${
-              index % 2 === 1 ? 'border-l border-line' : ''
-            } ${index > 1 ? 'border-t border-line lg:border-t-0' : ''} ${
-              index === 2 ? 'lg:border-l' : ''
-            }`}
-          >
-            <p className="flex items-baseline gap-1.5">
-              <span className="display tnum text-[2.6rem] leading-none sm:text-[3.2rem]">
-                {stat.value}
+      <div className="container-page grid grid-cols-1 gap-0 py-8 sm:grid-cols-2 sm:py-10 lg:grid-cols-4">
+        {stats.map(({ icon: Icon, value, unit, label }, index) => (
+          <Reveal key={label} delay={index * 70}>
+            <div
+              className={`flex items-center gap-4 px-4 py-5 sm:px-6 lg:px-8 ${
+                index % 2 === 1 ? 'sm:border-l sm:border-line' : ''
+              } ${index > 1 ? 'border-t border-line sm:border-t-0 lg:border-t-0' : ''} ${
+                index === 2 ? 'lg:border-l' : ''
+              } ${index === 3 ? 'lg:border-l' : ''}`}
+            >
+              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-sage/55 text-forest">
+                <Icon className="size-5" strokeWidth={1.6} aria-hidden="true" />
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-                {stat.unit}
-              </span>
-            </p>
-            <p className="mt-2 text-[12.5px] text-muted">{stat.label}</p>
-          </div>
+              <div>
+                <p className="flex items-baseline gap-1.5">
+                  <span className="display tnum text-[2.4rem] leading-none sm:text-[2.8rem]">
+                    {value}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
+                    {unit}
+                  </span>
+                </p>
+                <p className="mt-1.5 text-[12.5px] text-muted">{label}</p>
+              </div>
+            </div>
+          </Reveal>
         ))}
       </div>
     </section>
@@ -569,9 +683,15 @@ function Stats() {
 
 function NewsletterSection() {
   return (
-    <section className="py-16 sm:py-20 lg:py-24">
+    <section className="relative overflow-hidden py-16 sm:py-20 lg:py-24">
+      <div className="pointer-events-none absolute -left-8 bottom-0 hidden h-52 w-32 text-forest/12 md:block">
+        <LeafSprig className="leaf-sway size-full" />
+      </div>
+      <div className="pointer-events-none absolute -right-8 top-6 hidden h-48 w-28 rotate-180 text-forest/12 md:block">
+        <LeafSprig className="leaf-sway-slow size-full" />
+      </div>
       <div className="container-page">
-        <Reveal>
+        <Reveal variant="zoom">
           <div className="mx-auto max-w-2xl text-center">
             <span className="mx-auto grid size-12 place-items-center rounded-full border border-line bg-paper text-forest">
               <Leaf className="size-5" strokeWidth={1.5} aria-hidden="true" />
@@ -602,7 +722,6 @@ export function HomePage() {
         description="A modern pharmacy for everyday health. Prescriptions, wellness essentials and honest advice from licensed pharmacists."
       />
       <Hero />
-      <AssuranceStrip />
       <Goals />
       <ShelfFavourites />
       <Story />

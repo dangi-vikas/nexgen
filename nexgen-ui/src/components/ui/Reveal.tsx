@@ -5,9 +5,10 @@ interface RevealProps {
   children: ReactNode;
   className?: string;
   delay?: number;
+  variant?: 'up' | 'left' | 'right' | 'zoom';
 }
 
-export function Reveal({ children, className, delay = 0 }: RevealProps) {
+export function Reveal({ children, className, delay = 0, variant = 'up' }: RevealProps) {
   const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -35,7 +36,7 @@ export function Reveal({ children, className, delay = 0 }: RevealProps) {
   return (
     <div
       ref={ref}
-      className={cn('reveal', className)}
+      className={cn('reveal', variant !== 'up' && `reveal-${variant}`, className)}
       style={{ '--reveal-delay': `${delay}ms` } as CSSProperties}
     >
       {children}

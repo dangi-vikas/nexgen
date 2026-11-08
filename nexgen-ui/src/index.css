@@ -359,21 +359,141 @@
   .reveal {
     opacity: 0;
     transform: translateY(18px);
+    filter: blur(4px);
+    will-change: opacity, transform, filter;
     transition:
-      opacity 0.7s var(--ease-out-soft),
-      transform 0.7s var(--ease-out-soft);
+      opacity 0.75s var(--ease-out-soft),
+      transform 0.75s var(--ease-out-soft),
+      filter 0.75s var(--ease-out-soft);
     transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  .reveal-left {
+    transform: translateX(-26px);
+  }
+
+  .reveal-right {
+    transform: translateX(26px);
+  }
+
+  .reveal-zoom {
+    transform: scale(0.965);
   }
 
   .reveal.is-visible {
     opacity: 1;
     transform: none;
+    filter: none;
+    will-change: auto;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .reveal {
+    .reveal,
+    .hero-rise {
       opacity: 1;
       transform: none;
+      filter: none;
+      animation: none;
+    }
+
+    .hero-image,
+    .leaf-sway,
+    .leaf-sway-slow {
+      animation: none;
+      transform: none;
+    }
+
+    .draw-line {
+      animation: none;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .hero-image {
+    animation: hero-zoom 18s var(--ease-out-soft) both;
+  }
+
+  .hero-wash {
+    background:
+      linear-gradient(
+        90deg,
+        rgba(247, 244, 236, 0.99) 0%,
+        rgba(247, 244, 236, 0.96) 25%,
+        rgba(247, 244, 236, 0.78) 46%,
+        rgba(247, 244, 236, 0.28) 70%,
+        rgba(247, 244, 236, 0) 100%
+      ),
+      radial-gradient(ellipse 72% 110% at 7% 48%, rgba(247, 244, 236, 0.82) 0%, rgba(247, 244, 236, 0) 70%);
+  }
+
+  @media (max-width: 767px) {
+    .hero-wash {
+      background: linear-gradient(
+        180deg,
+        rgba(247, 244, 236, 0.99) 0%,
+        rgba(247, 244, 236, 0.94) 55%,
+        rgba(247, 244, 236, 0.6) 82%,
+        rgba(247, 244, 236, 0.18) 100%
+      );
+    }
+  }
+
+  .hero-rise {
+    animation: hero-rise 0.95s var(--ease-out-soft) both;
+    animation-delay: var(--hero-delay, 0ms);
+  }
+
+  .leaf-sway {
+    transform-origin: 50% 100%;
+    animation: leaf-sway 7s ease-in-out infinite;
+  }
+
+  .leaf-sway-slow {
+    transform-origin: 50% 100%;
+    animation: leaf-sway 11s ease-in-out infinite;
+  }
+
+  .draw-line {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: draw-line 1.1s 0.75s var(--ease-out-soft) forwards;
+  }
+
+  @keyframes hero-zoom {
+    from {
+      transform: scale(1.045);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes hero-rise {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+      filter: blur(5px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+      filter: none;
+    }
+  }
+
+  @keyframes leaf-sway {
+    0%,
+    100% {
+      transform: rotate(-1.8deg) translateY(0);
+    }
+    50% {
+      transform: rotate(2.6deg) translateY(-5px);
+    }
+  }
+
+  @keyframes draw-line {
+    to {
+      stroke-dashoffset: 0;
     }
   }
 
