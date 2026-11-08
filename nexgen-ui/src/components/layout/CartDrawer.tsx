@@ -3,6 +3,7 @@ import { ArrowRight, ShoppingBag, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useCartStore, useCartSubtotal, FREE_SHIPPING_THRESHOLD } from '@/store/cart';
 import { formatPrice } from '@/lib/utils';
+import { PageBotanicals } from '@/components/ui/Botanical';
 import { QuantityStepper } from '@/components/ui/QuantityStepper';
 import { useEscape, useFocusTrap, useLockBodyScroll } from '@/components/ui/useOverlay';
 
@@ -35,8 +36,9 @@ export function CartDrawer() {
       />
       <aside
         ref={panelRef}
-        className="drawer-enter absolute inset-y-0 right-0 flex w-full max-w-[460px] flex-col bg-cream shadow-[0_0_80px_rgba(16,35,28,0.3)]"
+        className="drawer-enter drawer-surface absolute inset-y-0 right-0 isolate flex w-full max-w-[460px] flex-col overflow-hidden shadow-[0_0_80px_rgba(16,35,28,0.3)]"
       >
+        <PageBotanicals />
         <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
           <div>
             <h2 id="cart-title" className="text-lg font-semibold tracking-[-0.03em]">

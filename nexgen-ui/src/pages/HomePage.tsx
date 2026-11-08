@@ -183,23 +183,12 @@ function Hero() {
           fetchPriority="high"
           className="hero-image absolute inset-0 size-full object-cover object-[70%_44%] sm:object-[68%_44%]"
         />
-        <div className="hero-wash absolute inset-0 md:hidden" aria-hidden="true" />
+        <div className="hero-wash absolute inset-0" aria-hidden="true" />
+        <div className="hero-blur absolute inset-y-0 left-0 z-[1] w-[72%]" aria-hidden="true" />
         <div
           className="absolute inset-0 bg-gradient-to-t from-forest/35 via-transparent to-ink/5"
           aria-hidden="true"
         />
-        <svg
-          className="pointer-events-none absolute inset-y-0 left-0 z-[2] hidden h-full w-[82%] text-cream drop-shadow-[18px_0_28px_rgba(16,35,28,0.12)] md:block lg:w-[60%]"
-          viewBox="0 0 900 900"
-          preserveAspectRatio="none"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M0 0H790C760 78 800 154 758 236C716 318 780 382 734 462C688 542 744 614 690 698C636 782 574 806 520 900H0V0Z"
-            fill="currentColor"
-          />
-        </svg>
         <div className="grain-overlay absolute inset-0 opacity-40" aria-hidden="true" />
 
         <div className="pointer-events-none absolute right-7 top-8 hidden grid-cols-4 gap-2 text-forest/25 sm:grid lg:right-12">
@@ -285,10 +274,10 @@ function Hero() {
           </div>
         </div>
 
-        <div className="pointer-events-none absolute -left-12 top-16 z-[3] hidden h-56 w-36 text-forest/20 md:block">
+        <div className="pointer-events-none absolute -left-12 top-16 hidden h-56 w-36 text-forest/20 md:block">
           <LeafSprig className="leaf-sway size-full" />
         </div>
-        <div className="pointer-events-none absolute -right-8 bottom-28 z-[3] hidden h-48 w-28 text-forest/20 lg:block">
+        <div className="pointer-events-none absolute -right-8 bottom-28 hidden h-48 w-28 text-forest/20 lg:block">
           <LeafSprig className="leaf-sway-slow size-full" />
         </div>
 
