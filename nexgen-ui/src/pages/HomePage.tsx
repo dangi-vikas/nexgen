@@ -191,10 +191,12 @@ function Hero() {
         />
         <div className="grain-overlay absolute inset-0 opacity-40" aria-hidden="true" />
 
-        <div className="pointer-events-none absolute right-7 top-8 hidden grid-cols-4 gap-2 text-forest/25 sm:grid lg:right-12">
-          {Array.from({ length: 16 }).map((_, index) => (
-            <span key={index} className="size-1 rounded-full bg-current" />
-          ))}
+        <div className="pointer-events-none absolute right-4 top-6 z-[3] hidden h-52 w-32 text-cream/40 sm:block lg:right-10 lg:top-8">
+          <LeafSprig className="leaf-sway-slow size-full" />
+        </div>
+
+        <div className="pointer-events-none absolute -right-6 top-14 h-44 w-28 text-forest/20 sm:hidden">
+          <LeafSprig className="leaf-sway-slow size-full" />
         </div>
 
         <div className="container-page relative z-10 flex min-h-[630px] items-center pb-36 pt-14 sm:min-h-[680px] sm:pb-40 lg:min-h-[730px] lg:pb-44">
@@ -274,16 +276,8 @@ function Hero() {
           </div>
         </div>
 
-        <div className="pointer-events-none absolute -left-12 top-16 hidden h-56 w-36 text-forest/20 md:block">
+        <div className="pointer-events-none absolute -left-12 top-14 z-[3] hidden h-60 w-40 text-forest/25 md:block">
           <LeafSprig className="leaf-sway size-full" />
-        </div>
-        <div className="pointer-events-none absolute -right-8 bottom-28 hidden h-48 w-28 text-forest/20 lg:block">
-          <LeafSprig className="leaf-sway-slow size-full" />
-        </div>
-
-        <div className="absolute bottom-24 right-6 z-10 hidden items-center gap-2.5 rounded-full border border-cream/30 bg-ink/20 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-cream/85 backdrop-blur-md lg:right-12 lg:flex">
-          <span className="size-1.5 rounded-full bg-clay" aria-hidden="true" />
-          Independent since 1998
         </div>
 
         <svg
@@ -624,14 +618,14 @@ function OfferBanner() {
                   Code WELCOME10
                 </span>
               </div>
+              <div className="pointer-events-none absolute right-3 bottom-2 h-32 w-20 text-cream/35 lg:-right-2 lg:h-48 lg:w-28 lg:text-cream/50">
+                <LeafSprig className="leaf-sway size-full" />
+              </div>
             </div>
 
             <div className="pointer-events-none absolute -bottom-10 right-[49%] z-0 hidden h-56 w-56 lg:block">
               <BotanicalFlower className="leaf-sway-slow absolute bottom-0 right-0 h-36 w-36 text-clay sm:h-44 sm:w-44" />
               <BotanicalFlower className="absolute right-24 top-4 h-20 w-20 rotate-12 opacity-80 sm:right-28" />
-              <div className="absolute -left-12 bottom-2 h-40 w-24 text-forest/45">
-                <LeafSprig className="leaf-sway size-full" />
-              </div>
             </div>
           </div>
         </Reveal>
