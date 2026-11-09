@@ -191,14 +191,6 @@ function Hero() {
         />
         <div className="grain-overlay absolute inset-0 opacity-40" aria-hidden="true" />
 
-        <div className="pointer-events-none absolute right-4 top-6 z-[3] hidden h-52 w-32 text-cream/40 sm:block lg:right-10 lg:top-8">
-          <LeafSprig className="leaf-sway-slow size-full" />
-        </div>
-
-        <div className="pointer-events-none absolute -right-6 top-14 h-44 w-28 text-forest/20 sm:hidden">
-          <LeafSprig className="leaf-sway-slow size-full" />
-        </div>
-
         <div className="container-page relative z-10 flex min-h-[630px] items-center pb-36 pt-14 sm:min-h-[680px] sm:pb-40 lg:min-h-[730px] lg:pb-44">
           <div className="max-w-[620px]">
             <p
