@@ -9,14 +9,16 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# dir module database port — the jar name is read from target/ after the build, because
+# user and product are 1.0.0 while the other five are 0.0.1-SNAPSHOT.
 SERVICES=(
-  "user-service user-service userdb user-service-1.0.0.jar 8081"
-  "product-service product-service productdb product-service-0.0.1-SNAPSHOT.jar 8083"
-  "inventory-service inventory-service inventorydb inventory-service-0.0.1-SNAPSHOT.jar 8082"
-  "cart-service cart-service cartdb cart-service-0.0.1-SNAPSHOT.jar 8086"
-  "order-service order-service orderdb order-service-0.0.1-SNAPSHOT.jar 8084"
-  "payment-service payment-service paymentdb payment-service-0.0.1-SNAPSHOT.jar 8085"
-  "notification-service notification-service notificationdb notification-service-0.0.1-SNAPSHOT.jar 8087"
+  "user-service user-service userdb 8081"
+  "product-service product-service productdb 8083"
+  "inventory-service inventory-service inventorydb 8082"
+  "cart-service cart-service cartdb 8086"
+  "order-service order-service orderdb 8084"
+  "payment-service payment-service paymentdb 8085"
+  "notification-service notification-service notificationdb 8087"
 )
 
 # A .env is required by the services and by the E2E script. CI has none, so create the
@@ -86,22 +88,32 @@ done
 echo "==> building services"
 mkdir -p logs/e2e
 for entry in "${SERVICES[@]}"; do
-  read -r dir module db jar port <<<"$entry"
+  read -r dir module db port <<<"$entry"
   ( cd "nexgen-server/$dir/$module" && chmod +x mvnw && ./mvnw -B -DskipTests package )
 done
 
 echo "==> starting services"
 for entry in "${SERVICES[@]}"; do
-  read -r dir module db jar port <<<"$entry"
+  read -r dir module db port <<<"$entry"
+  module_dir="nexgen-server/$dir/$module"
+  shopt -s nullglob
+  jars=("$module_dir"/target/*.jar)
+  shopt -u nullglob
+  if [ "${#jars[@]}" -ne 1 ]; then
+    echo "!! expected exactly one jar in $module_dir/target, found ${#jars[@]}" >&2
+    exit 1
+  fi
+  jar="${jars[0]##*/}"
+  echo "    $dir -> $jar"
   # Each service runs from its own module directory: logback writes to ../../../logs/<service>.
-  ( cd "nexgen-server/$dir/$module" && exec env DB_NAME="$db" java -jar "target/$jar" ) \
+  ( cd "$module_dir" && exec env DB_NAME="$db" java -jar "target/$jar" ) \
     >"logs/e2e/$dir.log" 2>&1 &
   echo "$!" >"logs/e2e/$dir.pid"
 done
 
 echo "==> waiting for services"
 for entry in "${SERVICES[@]}"; do
-  read -r dir module db jar port <<<"$entry"
+  read -r dir module db port <<<"$entry"
   code=""
   for _ in $(seq 1 40); do
     code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$port/actuator/health" || true)

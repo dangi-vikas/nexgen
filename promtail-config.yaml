@@ -2,11 +2,17 @@ server:
   http_listen_port: 9080
   grpc_listen_port: 0
 
+# Kept inside the mounted ./logs directory: /tmp is container-local, so every restart
+# re-read the whole log history and Lkc's ingest limit rejected the catch-up batches.
 positions:
-  filename: /tmp/positions.yaml
+  filename: /var/logs/.promtail-positions.yaml
 
 clients:
   - url: http://loki:3100/loki/api/v1/push
+    # Smaller batches than the 1 MB default: a backlog replay of ~1 MB every few
+    # seconds is what tripped Loki's per-second ingestion limit.
+    batchsize: 262144
+    batchwait: 1s
 
 # Each service writes logs/<service>/application.log (see logback-spring.xml).
 scrape_configs:

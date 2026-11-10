@@ -263,6 +263,8 @@ sum by (status) (rate(order_status_updated_total[5m]))
 
 Grafana is provisioned from the repository: `monitoring/grafana/provisioning` defines the Prometheus and Loki datasources (fixed uids, so panels never need remapping) and `monitoring/grafana/dashboards/nexgen-saga.json` is loaded as the **NexGen — Services & Checkout Saga** dashboard. A dashboard edited in the UI is lost on the next container recreate; edit the JSON and commit it instead. The host port is `GRAFANA_PORT` (default `3000`), which is `3001` in the local `.env` because 3000 is taken on the development machine.
 
+Log shipping: Promtail's position file is `/var/logs/.promtail-positions.yaml`, inside the mounted `./logs` directory. That matters — with the position file in the container's `/tmp`, every recreate re-sent the entire log history, and Loki answered those catch-up batches with `429 Too Many Requests` (`Ingestion rate limit exceeded ... limit: 4194304 bytes/sec`) while dropping the lines. Loki now allows `ingestion_rate_mb: 16` with a `32` MB burst, and Promtail sends 256 KB batches every second. If log lines go missing after a restart, check `docker logs promtail | grep 429` first and confirm the positions file exists.
+
 ---
 
 ## 9. Common failure modes

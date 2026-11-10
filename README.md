@@ -101,7 +101,7 @@ Every service has its own SQL Server database (`userdb`, `productdb`, `inventory
 - Actuator is present in all seven services; `/actuator/health` is what the end-to-end readiness check polls, and `liveness`/`readiness` groups are enabled.
 - Prometheus scrapes **all seven services** plus itself (`prometheus/prometheus.yml`). Every service exposes Micrometer metrics at `/actuator/prometheus`, and that path is explicitly permitted in each `SecurityConfig` — without it the scrape gets a 401 and the target is reported down, while `/actuator/metrics` stays behind authentication.
 - Grafana is provisioned from the repository (`monitoring/grafana`): Prometheus and Loki datasources plus the **NexGen — Services & Checkout Saga** dashboard (services up, request rate, p95 latency, 5xx rate, JVM heap, order-service logs). Nothing is clicked in by hand.
-- Loki/Promtail tail `logs/<service>/application.log` for all seven services and Kong, but there is no retention policy.
+- Loki/Promtail tail `logs/<service>/application.log` for all seven services and Kong; Loki keeps 7 days and enforces it through the compactor, and Promtail's position file lives in the mounted logs directory so a restart does not replay the whole history.
 - Logs are structured JSON carrying a `correlationId`, and the gateway echoes it as `X-Correlation-Id`, so one checkout can be followed across services by that id.
 - Custom metrics are partial and are not documented as SLOs.
 
@@ -178,7 +178,7 @@ Build every module first, then start each service **from its own module director
 ```bash
 cd nexgen-server/<service>/<service>
 ./mvnw -B -DskipTests package
-java -jar target/<artifact>.jar     # jar names: user-service-1.0.0.jar, everything else *-0.0.1-SNAPSHOT.jar
+java -jar target/<artifact>.jar     # user-service and product-service are 1.0.0.jar, the other five *-0.0.1-SNAPSHOT.jar
 ```
 
 Each service reads `DB_NAME` for its own database. See the per-service pages under [`docs/services/`](docs/services/) and [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full variable list.
@@ -230,7 +230,7 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 - **Payments are simulated.** No PSP, no real settlement; the `.99` decline rule is the only failure mode.
 - **Kafka is PLAINTEXT, Redis has no auth, SQL Server uses `sa`** in the local Compose setup. Acceptable locally, never in production.
 - `JWT_SECRET` must be at least 32 bytes and identical across services; the example value must never ship.
-- Monitoring keeps no history and raises no alerts: Prometheus retention and Loki retention are whatever the containers default to, and there are no alert rules or notification channels, so nobody is paged when the stack misbehaves.
+- Monitoring raises no alerts: Prometheus keeps its 15-day default and Loki 7 days, but there are no alert rules or notification channels, so nobody is paged when the stack misbehaves.
 - Swagger is public in the HTTP services and documents auth only for user-service.
 
 **No production deployment should be attempted while these hold.**
