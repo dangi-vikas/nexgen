@@ -66,11 +66,19 @@ services:
       POSTGRES_PASSWORD: ${KONG_PG_PASSWORD}
     volumes:
       - kong_data:/var/lib/postgresql/data
+    # Migrations need a database that accepts connections, not just a started container:
+    # on a fresh runner Postgres spends a few seconds initialising its data directory.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kong -d kong"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   kong-migrations:
     image: kong:3.5
     depends_on:
-      - kong-db
+      kong-db:
+        condition: service_healthy
     environment:
       KONG_DATABASE: postgres
       KONG_PG_HOST: kong-db
@@ -82,8 +90,15 @@ services:
     image: kong:3.5
     container_name: kong
     depends_on:
-      - kong-migrations
-      - kong-db
+      kong-db:
+        condition: service_started
+      # A plain list only waits for the migrations container to *start*. That is how Kong
+      # bootstrapped against a half-migrated schema on a fresh database, exited, and left
+      # the admin API unreachable while `up -d` still reported success — CI then failed
+      # with a bare "cannot reach Kong". Bootstrap exits 0 when the schema is already
+      # current, so a reused volume is unaffected.
+      kong-migrations:
+        condition: service_completed_successfully
     environment:
       KONG_DATABASE: postgres
       KONG_PG_HOST: kong-db
@@ -142,6 +157,12 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
+      # Alerts are delivered to Mailpit: no mailbox, no provider, no cost.
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=mailpit:1025
+      - GF_SMTP_FROM_ADDRESS=alerts@nexgen.local
+      - GF_SMTP_FROM_NAME=NexGen Alerts
+      - GF_SMTP_SKIP_VERIFY=true
     volumes:
       - grafana-storage:/var/lib/grafana
       # Datasources and dashboards are versioned in the repository, not clicked in.

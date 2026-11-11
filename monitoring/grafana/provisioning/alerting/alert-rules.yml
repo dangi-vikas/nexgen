@@ -1,0 +1,235 @@
+# Alert rules are provisioned from the repository so a rebuilt Grafana keeps them.
+#
+# Every query below targets a metric the services actually expose (verified against
+# Prometheus' __name__ values): `up`, http_server_requests_seconds_*, and the HikariCP
+# pool gauges. There is no custom saga or outbox counter in the codebase, so failures
+# are caught through the HTTP surface and the database pool rather than invented metrics.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: nexgen-services
+    folder: NexGen
+    interval: 1m
+    rules:
+      - uid: nexgen-service-down
+        title: NexGen service down
+        condition: C
+        for: 2m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: critical
+        annotations:
+          summary: '{{ $labels.job }} is down'
+          description: >-
+            Prometheus has reported up == 0 for {{ $labels.job }} for more than two
+            minutes: the process is stopped, or /actuator/prometheus is no longer
+            reachable (a 401 there makes the target look down).
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # Query the raw gauge and compare below one instead of filtering with
+              # `up == 0`: the filtered form returns no series whenever everything is
+              # healthy, which Grafana reports as NoData rather than Normal.
+              expr: up{job=~".+-service"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+
+      - uid: nexgen-5xx-ratio
+        title: NexGen 5xx response ratio
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.job }} is returning 5xx for {{ $values.A }} of requests'
+          description: >-
+            More than 5% of the requests handled by {{ $labels.job }} have failed with a
+            5xx status over the last five minutes.
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # The numerator disappears when there are no errors, so the series is
+              # absent (noDataState: OK) rather than alerting on zero traffic.
+              expr: >-
+                sum by (job) (rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+                / sum by (job) (rate(http_server_requests_seconds_count[5m]))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.05
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+
+      - uid: nexgen-p95-latency
+        title: NexGen p95 latency
+        condition: C
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.job }} p95 latency is {{ $values.A }}s'
+          description: >-
+            The 95th percentile of {{ $labels.job }} request latency has stayed above
+            1.5s for ten minutes.
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: >-
+                histogram_quantile(0.95, sum by (le, job)
+                (rate(http_server_requests_seconds_bucket{job=~".+-service"}[5m])))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1.5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+
+      - uid: nexgen-db-pool-pending
+        title: NexGen database connections queued
+        condition: C
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.job }} has {{ $values.A }} threads waiting for a connection'
+          description: >-
+            More than five threads in {{ $labels.job }} have been waiting on the HikariCP
+            pool for five minutes: the pool is exhausted or SQL Server is slow.
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: max by (job) (hikaricp_connections_pending)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 5
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - A
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold

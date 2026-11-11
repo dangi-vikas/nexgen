@@ -129,13 +129,26 @@ for entry in "${SERVICES[@]}"; do
 done
 
 echo "==> starting Kong"
+# Compose starts kong-migrations first and waits for it to finish
+# (service_completed_successfully), so this returns only once the schema is current.
 docker compose up -d kong
-for _ in $(seq 1 30); do
+# The gateway is only usable once its admin API answers; on a fresh database Kong has to
+# finish bootstrapping first. Falling through here used to surface the problem much later
+# as a bare "cannot reach Kong" from setup-all.sh, so wait explicitly and dump the
+# container logs when it never comes up.
+kong_ready=""
+for _ in $(seq 1 60); do
   if curl -fsS "http://localhost:${KONG_ADMIN_PORT:-8001}/status" >/dev/null 2>&1; then
+    kong_ready=yes
     break
   fi
   sleep 3
 done
+if [ -z "$kong_ready" ]; then
+  echo "!! Kong admin API did not answer on http://localhost:${KONG_ADMIN_PORT:-8001}/status" >&2
+  docker compose logs --tail=40 kong kong-migrations >&2 || true
+  exit 1
+fi
 
 echo "==> configuring Kong"
 ./kong-automation/setup-all.sh

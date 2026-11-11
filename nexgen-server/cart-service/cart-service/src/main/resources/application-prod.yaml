@@ -1,0 +1,13 @@
+# The prod profile switches the interactive API documentation off.
+#
+# Swagger UI and the OpenAPI document are development tools: they enumerate every
+# endpoint and its payloads, which is useful locally and unnecessary exposure on a
+# deployed host. Start a service with SPRING_PROFILES_ACTIVE=prod (or
+# --spring.profiles.active=prod) and both endpoints stop being registered, so they
+# return 404 instead of serving the API map. Nothing else changes: the actuator
+# surface, the JWT filter chain and the business endpoints are unaffected.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

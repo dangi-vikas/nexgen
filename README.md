@@ -103,6 +103,7 @@ Every service has its own SQL Server database (`userdb`, `productdb`, `inventory
 - Grafana is provisioned from the repository (`monitoring/grafana`): Prometheus and Loki datasources plus the **NexGen — Services & Checkout Saga** dashboard (services up, request rate, p95 latency, 5xx rate, JVM heap, order-service logs). Nothing is clicked in by hand.
 - Loki/Promtail tail `logs/<service>/application.log` for all seven services and Kong; Loki keeps 7 days and enforces it through the compactor, and Promtail's position file lives in the mounted logs directory so a restart does not replay the whole history.
 - Logs are structured JSON carrying a `correlationId`, and the gateway echoes it as `X-Correlation-Id`, so one checkout can be followed across services by that id.
+- Alerting is provisioned too (`monitoring/grafana/provisioning/alerting`): four rules — service down, 5xx ratio above 5%, p95 latency above 1.5s, and more than five threads queued for a database connection — routed by e-mail to Mailpit, so a fired alert is readable at http://localhost:8025 without any external account.
 - Custom metrics are partial and are not documented as SLOs.
 
 ## 🛡 Resilience
@@ -230,8 +231,8 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 - **Payments are simulated.** No PSP, no real settlement; the `.99` decline rule is the only failure mode.
 - **Kafka is PLAINTEXT, Redis has no auth, SQL Server uses `sa`** in the local Compose setup. Acceptable locally, never in production.
 - `JWT_SECRET` must be at least 32 bytes and identical across services; the example value must never ship.
-- Monitoring raises no alerts: Prometheus keeps its 15-day default and Loki 7 days, but there are no alert rules or notification channels, so nobody is paged when the stack misbehaves.
-- Swagger is public in the HTTP services and documents auth only for user-service.
+- Alert delivery stops at Mailpit on the same host: the rules fire and the e-mail is sent, but nobody is paged off-box until `GF_SMTP_HOST` points at a real relay or an on-call integration is added.
+- API docs are development-only in intent, not in default behaviour: the OpenAPI document (`/api-docs`, `/v3/api-docs` in user-service) and Swagger UI stay enabled unless a service starts with `SPRING_PROFILES_ACTIVE=prod`.
 
 **No production deployment should be attempted while these hold.**
 
@@ -248,7 +249,7 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 - Flyway migrations in all seven services, with constraints that match the domain
 - Redis caching in cart, product, inventory and order
 - Mailpit-backed e-mail delivery outbox in notification-service
-- Swagger/OpenAPI in the five HTTP services (auth documented only for user-service)
+- Swagger/OpenAPI in the five HTTP services, each declaring the `bearerAuth` scheme so the Authorize button works; the `prod` profile switches both docs endpoints off
 - Actuator health/readiness in every service, used by the E2E readiness check
 - An end-to-end verification script covering 35 checks, including the decline/compensation path
 - A multi-stage Dockerfile per service (non-root runtime) and a CI pipeline that builds and tests each module, then runs the full E2E suite
@@ -258,7 +259,7 @@ Per-service counts at the last full run: user 54, order 33, inventory 26, produc
 - A dedicated audit trail for administrative actions (they are logged, but not stored in their own table)
 - A real payment provider (the simulator charges nothing; a live PSP also costs money)
 - Automated infrastructure provisioning (infrastructure is one Compose file; images are built per service)
-- Alerting and retention: metrics and logs are collected and dashboarded, but nothing pages and nothing expires
+- On-call routing: alerts fire and are delivered by e-mail to Mailpit, but there is no paging integration and no acknowledgement or escalation path
 - Testcontainers integration tests in CI (the E2E run is manual)
 - Load, soak and failure-injection testing
 
@@ -274,7 +275,7 @@ The prioritized plan is in [`docs/IMPLEMENTATION_ROADMAP.md`](docs/IMPLEMENTATIO
 - [x] Add Dockerfiles and a CI pipeline that builds, tests and runs the E2E suite
 - [x] Add admin provisioning: bootstrap administrator and admin-only, logged role changes
 - [x] Add provisioned Grafana dashboards for the services and the checkout saga
-- [ ] Add alert rules and notification routing
+- [x] Add alert rules and notification routing
 - [ ] Move the E2E suite onto Testcontainers so it runs anywhere
 
 ## 🧼 Engineering practices in the current code

@@ -265,6 +265,28 @@ Grafana is provisioned from the repository: `monitoring/grafana/provisioning` de
 
 Log shipping: Promtail's position file is `/var/logs/.promtail-positions.yaml`, inside the mounted `./logs` directory. That matters — with the position file in the container's `/tmp`, every recreate re-sent the entire log history, and Loki answered those catch-up batches with `429 Too Many Requests` (`Ingestion rate limit exceeded ... limit: 4194304 bytes/sec`) while dropping the lines. Loki now allows `ingestion_rate_mb: 16` with a `32` MB burst, and Promtail sends 256 KB batches every second. If log lines go missing after a restart, check `docker logs promtail | grep 429` first and confirm the positions file exists.
 
+### Alerting
+
+Four rules are provisioned from `monitoring/grafana/provisioning/alerting/alert-rules.yml` into the **NexGen** folder, evaluated every minute:
+
+| Rule | Condition | For | Severity |
+|---|---|---|---|
+| NexGen service down | `up{job=~".+-service"}` below 1 | 2m | critical |
+| NexGen 5xx response ratio | 5xx share of requests > 5% | 5m | warning |
+| NexGen p95 latency | p95 request latency > 1.5s | 10m | warning |
+| NexGen database connections queued | `hikaricp_connections_pending` > 5 | 5m | warning |
+
+Delivery is `contact-points.yml` (e-mail to `alerts@nexgen.local`) driven through Grafana's SMTP settings, which point at Mailpit. Read fired alerts at http://localhost:8025, or confirm the tree with `curl -u admin:admin localhost:3001/api/v1/provisioning/alert-rules`. Critical alerts bypass the 30s group wait; everything repeats every four hours (one hour for critical).
+
+To prove delivery end to end, stop one service and wait about three minutes:
+
+```bash
+taskkill //F //PID <notification-service pid>   # or stop it however you started it
+sleep 200 && curl -s 'localhost:8025/api/v1/messages?limit=5' | grep -o '"Subject":"[^"]*"'
+```
+
+Editing a rule in the UI is lost on the next Grafana restart: change the YAML and recreate the container.
+
 ---
 
 ## 9. Common failure modes

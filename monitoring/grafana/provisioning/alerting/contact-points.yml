@@ -1,0 +1,17 @@
+# Contact points are provisioned, not clicked in.
+#
+# Delivery goes to Mailpit (SMTP on 1025, web UI on 8025 in docker-compose), which keeps
+# alerting offline and free: no mailbox, no provider account, no per-message cost. Point
+# GF_SMTP_HOST at a real relay before this leaves a development machine.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: NexGen email
+    receivers:
+      - uid: nexgen-email
+        type: email
+        disableResolveMessage: false
+        settings:
+          addresses: alerts@nexgen.local
+          singleEmail: true

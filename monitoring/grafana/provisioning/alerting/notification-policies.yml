@@ -1,0 +1,25 @@
+# The policy tree is a single resource: provisioning it replaces every policy, so this
+# file must stay the only source of truth for routing.
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: NexGen email
+    group_by:
+      - alertname
+      - job
+    # A short group wait batches rules that fire together; the repeat interval is long
+    # because a development stack that is already down does not need hourly reminders.
+    group_wait: 30s
+    group_interval: 2m
+    repeat_interval: 4h
+    routes:
+      # Service-down is the one alert worth sending immediately.
+      - receiver: NexGen email
+        object_matchers:
+          - - severity
+            - '='
+            - critical
+        group_wait: 0s
+        group_interval: 1m
+        repeat_interval: 1h
